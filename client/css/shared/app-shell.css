@@ -8,18 +8,20 @@
   --nav-text:#45556c;--nav-title:#90a1b9;--online-bg:#ecfdf5;--online-border:#d0fae5;--online-text:#007a55;
   --unread-bg:#f8fffc;
   --font-sans:Inter,Arial,sans-serif;
-  /* auth-hero-background.png reused as a faint site-wide wallpaper (see
-     .content below): an almost-opaque tint of --page painted over the photo
-     leaves only a soft ~8% hint of it showing, so cards/tables (which keep
-     their own solid --page background) stay fully legible on top. */
-  --hero-overlay: rgba(255,255,255,.92);
+  /* auth-hero-background.png reused as a site-wide wallpaper (see .content
+     below): a tint of --page painted over the photo leaves it showing
+     through at ~25% (per user request — raised from an earlier ~8% pass),
+     while cards/tables (which keep their own solid --page background) stay
+     fully legible on top. The sidebar and topbar keep their plain solid
+     --page background untouched, so only the content pane wears the photo. */
+  --hero-overlay: rgba(255,255,255,.75);
 }
 :root[data-theme="dark"]{
   --deep:#00c98a;
   --ink:#e6edf7;--muted:#94a6c2;--line:#28374f;--softline:#19233a;--page:#101a2c;--canvas:#0a1220;
   --nav-text:#aebbd3;--nav-title:#6d7fa3;--online-bg:#0d2a22;--online-border:#0f3d30;--online-text:#4ade80;
   --unread-bg:#0d1f2e;
-  --hero-overlay: rgba(16,26,44,.92);
+  --hero-overlay: rgba(16,26,44,.76);
 }
 
 html,body{height:100%}
