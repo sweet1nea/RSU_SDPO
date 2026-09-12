@@ -8,12 +8,18 @@
   --nav-text:#45556c;--nav-title:#90a1b9;--online-bg:#ecfdf5;--online-border:#d0fae5;--online-text:#007a55;
   --unread-bg:#f8fffc;
   --font-sans:Inter,Arial,sans-serif;
+  /* auth-hero-background.png reused as a faint site-wide wallpaper (see
+     .content below): an almost-opaque tint of --page painted over the photo
+     leaves only a soft ~8% hint of it showing, so cards/tables (which keep
+     their own solid --page background) stay fully legible on top. */
+  --hero-overlay: rgba(255,255,255,.92);
 }
 :root[data-theme="dark"]{
   --deep:#00c98a;
   --ink:#e6edf7;--muted:#94a6c2;--line:#28374f;--softline:#19233a;--page:#101a2c;--canvas:#0a1220;
   --nav-text:#aebbd3;--nav-title:#6d7fa3;--online-bg:#0d2a22;--online-border:#0f3d30;--online-text:#4ade80;
   --unread-bg:#0d1f2e;
+  --hero-overlay: rgba(16,26,44,.92);
 }
 
 html,body{height:100%}
@@ -54,7 +60,14 @@ main{flex:1;min-width:0;background:var(--page);display:flex;flex-direction:colum
 .online i{width:6px;height:6px;border-radius:50%;background:#00bc7d}
 .clock{border-left:1px solid var(--line);padding-left:12px;text-align:right;font-size:12px;font-weight:600}
 .clock small{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:2px}
-.content{flex:1;overflow-y:auto;padding:16px}
+.content{
+  flex:1;overflow-y:auto;padding:16px;
+  background-image:linear-gradient(var(--hero-overlay),var(--hero-overlay)),url("../../assets/images/auth-hero-background.png");
+  background-size:cover;
+  background-position:center;
+  background-attachment:fixed;
+  background-repeat:no-repeat;
+}
 
 /* ---------- Notification bell + panel ---------- */
 .bell-wrap{position:relative}
