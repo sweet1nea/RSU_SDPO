@@ -11,11 +11,20 @@
   // Real product photography for the categories we have shots of — everything
   // else falls back to the generic equipment icon so the catalog never shows
   // a broken image for a category we haven't photographed yet.
+  //
+  // Futsal intentionally points at the soccer-ball photo, not a dedicated
+  // "equipment-futsal-ball.png": that file turned out to be a saved
+  // screenshot of the equipment card itself (photo + the "Available" badge
+  // + the EQ-#### id strip baked into the picture), not a plain product
+  // photo, so every Futsal card was compositing a second, fake badge/id
+  // strip on top of the real one. Swap this back to a proper futsal-ball
+  // photo once real equipment photography is in (see the Google Drive photo
+  // set) — asset file itself is untouched, just no longer referenced here.
   var CATEGORY_PHOTO = {
     Basketball: "equipment-basketball.png",
     Volleyball: "equipment-volleyball.png",
     Football: "equipment-soccer-ball.png",
-    Futsal: "equipment-futsal-ball.png",
+    Futsal: "equipment-soccer-ball.png",
     Badminton: "equipment-badminton-shuttlecock.png",
     Boxing: "equipment-boxing-gloves.png",
     Chess: "equipment-chess-clock.png",

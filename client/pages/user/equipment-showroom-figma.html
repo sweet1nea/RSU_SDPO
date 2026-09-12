@@ -144,6 +144,11 @@
        its server-side counterpart, maxBorrowableUnits() in
        borrow.controller.js). */
     .equip-min-stock-note{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#c10007;margin-top:6px}
+    /* Quiet informational note (not a warning) showing the per-request cap
+       from maxBorrowableUnits() — e.g. "Max 1 per request" — so it's clear
+       why the + stepper stops where it does instead of it just going dim
+       with no explanation. */
+    .equip-cap-note{font-size:11px;font-weight:500;color:var(--muted)}
     .equip-row__stepper{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px}
     .equip-row__stepper button{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:14px;line-height:1;cursor:pointer;color:#1d293d}
     .equip-row__stepper button:disabled{opacity:.4;cursor:not-allowed}
@@ -450,8 +455,14 @@
     const icon={Badminton:'🏸',Baseball:'⚾',Basketball:'🏀',Boxing:'🥊',Chess:'♟',Football:'🏈',Futsal:'🥅',Volleyball:'🏐','Lawn Tennis':'🎾','Sports Training':'🏃','Sepak Takraw':'🟤',Softball:'🥎','Table Tennis':'🏓',Taekwondo:'🥋'};
     /* Real product photography for the categories we have shots of — everything
        else falls back to the generated emoji tile so the catalog never shows a
-       broken image for a category we haven't photographed yet. */
-    const categoryPhoto={Basketball:'equipment-basketball.png',Volleyball:'equipment-volleyball.png',Football:'equipment-soccer-ball.png',Futsal:'equipment-futsal-ball.png',Badminton:'equipment-badminton-shuttlecock.png',Boxing:'equipment-boxing-gloves.png',Chess:'equipment-chess-clock.png'};
+       broken image for a category we haven't photographed yet.
+       Futsal points at the soccer-ball photo, not a dedicated
+       "equipment-futsal-ball.png" — that file is actually a saved screenshot
+       of the equipment card itself (photo + "Available" badge + EQ-#### id
+       strip baked into the picture), which was compositing a second, fake
+       badge/id strip on top of the real one on every Futsal card. Swap this
+       back once real futsal-ball photography is in. */
+    const categoryPhoto={Basketball:'equipment-basketball.png',Volleyball:'equipment-volleyball.png',Football:'equipment-soccer-ball.png',Futsal:'equipment-soccer-ball.png',Badminton:'equipment-badminton-shuttlecock.png',Boxing:'equipment-boxing-gloves.png',Chess:'equipment-chess-clock.png'};
     const productSvg=(emoji)=>`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" rx="16" fill="#eef3f6"/><text x="45" y="61" text-anchor="middle" font-size="52">${emoji}</text></svg>`)}`;
     const productImage=(category)=>categoryPhoto[category]?`../../assets/images/${categoryPhoto[category]}`:productSvg(icon[category]||'🏅');
     const displayId=(p)=>'EQ-'+String(p.id).padStart(3,'0');
@@ -477,6 +488,29 @@
        this page doesn't share a module with the server. */
     function minStockFloor(total){return Math.ceil(total*0.25);}
     function belowMinStock(available,total){return total>0&&available<=minStockFloor(total);}
+
+    /* Per-request max-borrowable cap — mirrors maxBorrowableUnits() in
+       server/controllers/borrow.controller.js exactly: the SDPO's official
+       available-quantity borrowing rule (more than 5 → up to 2 units, 4 to 5
+       → only 1 unit, 1 to 3 → borrowing not allowed), combined with the 25%
+       minimum-stock floor above (whichever is stricter wins). This used to
+       only gate the server-side submit — the wizard's quantity stepper and
+       equipment picker let a borrower select and increment past this cap,
+       only to have the request rejected at Continue/Submit. Now the stepper
+       itself stops at the real cap, so it can't be exceeded in the first
+       place. Independent of stockLevel()'s own percentage-based color badge
+       above (that's a separate, pre-existing coloring scheme left as-is) —
+       this only controls how many units of an item can actually be
+       requested. Kept in sync manually with the server since this page has
+       no shared module with it. */
+    function maxBorrowableUnits(available,total){
+      let cap;
+      if(available>5)cap=2;
+      else if(available>=4)cap=1;
+      else cap=0;
+      if(belowMinStock(available,total))cap=0;
+      return cap;
+    }
 
     const $=id=>document.getElementById(id);
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -534,7 +568,8 @@
       const level=stockLevel(p.available,p.total);
       const badgeClass=level==='available'?'available':level;
       const badgeLabel=p.available<=0?'Unavailable':level==='available'?'Available':`${STOCK_LABEL[level]} — ${p.available} left`;
-      const minStockBlocked=p.available>0&&belowMinStock(p.available,p.total);
+      const cap=maxBorrowableUnits(p.available,p.total);
+      const minStockBlocked=p.available>0&&cap===0;
       const canBorrow=p.available>0&&!minStockBlocked;
       const btnLabel=p.available<=0?'Unavailable':minStockBlocked?'Not Available to Borrow':'Request to Borrow';
       return `<article class="equipment-card" data-id="${p.id}">
@@ -547,7 +582,7 @@
           <h3>${esc(p.name)}</h3>
           <div class="equipment-card__tags"><span class="chip chip--neutral">${esc(p.category)}</span><span class="chip chip--good">Good</span></div>
           <div class="equipment-card__stock-row${level!=='available'?' equipment-card__stock-row--'+level:''}"><span>Available</span><span>${p.available} / ${p.total}</span></div>
-          ${minStockBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is at the SDPO\'s minimum threshold — you can\'t borrow this right now.</div>':''}
+          ${minStockBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — you can\'t borrow this at this moment.</div>':''}
           <div class="equipment-card__actions">
             <button type="button" class="btn-details" data-id="${p.id}" ${canBorrow?'':'disabled'}>${btnLabel}</button>
           </div>
@@ -663,9 +698,10 @@
 
     function equipmentOptionsHtml(selectedId){
       const opts=products.map(p=>{
-        const blocked=p.available>0&&belowMinStock(p.available,p.total);
+        const cap=maxBorrowableUnits(p.available,p.total);
+        const blocked=p.available>0&&cap===0;
         const disabled=!p.available||blocked;
-        const suffix=blocked?' — below minimum stock':'';
+        const suffix=blocked?' — below minimum stock':cap>0?` — max ${cap} per request`:'';
         return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${p.available})${suffix}</option>`;
       }).join('');
       return `<option value="">Select equipment...</option>${opts}`;
@@ -677,17 +713,25 @@
         const product=productById(row.equipmentId);
         const available=product?product.available:0;
         const level=product?stockLevel(available,product.total):'available';
-        const minBlocked=product&&belowMinStock(available,product.total);
+        const cap=product?maxBorrowableUnits(available,product.total):0;
+        const minBlocked=product&&cap===0;
+        // Clamp here too, not just at the +/- buttons: if the equipment
+        // list refreshes (e.g. someone else's request just got approved
+        // and ate the remaining stock) while a row already holds more than
+        // the new cap allows, silently capping it keeps what's on screen
+        // submittable instead of letting a stale quantity slip through to
+        // a 409 at Continue.
+        if(product&&row.quantity>cap&&cap>0)row.quantity=cap;
         return `<div class="equip-row" data-row="${row.rowId}">
           <div class="equip-row__main">
             <select class="equip-row__select">${equipmentOptionsHtml(row.equipmentId)}</select>
-            <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>`:''}</div>
-            ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: below the SDPO\'s minimum stock threshold — choose a different item.</div>':''}
+            <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Max ${cap} per request</span>`:''}`:''}</div>
+            ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — choose a different item.</div>':''}
           </div>
           <div class="equip-row__stepper">
             <button type="button" class="equip-row__dec" ${row.quantity<=1?'disabled':''}>−</button>
             <span>${row.quantity}</span>
-            <button type="button" class="equip-row__inc" ${!product||minBlocked||row.quantity>=available?'disabled':''}>+</button>
+            <button type="button" class="equip-row__inc" ${!product||cap<=0||row.quantity>=cap?'disabled':''}>+</button>
           </div>
           <button type="button" class="equip-row__remove" title="Remove equipment"><img src="../../assets/icons/icon-trash.svg" alt="" style="width:12px;height:12px"></button>
         </div>`;
@@ -706,7 +750,7 @@
       const rowId=Number(rowEl.dataset.row);
       const row=equipmentRows.find(r=>r.rowId===rowId);
       if(e.target.closest('.equip-row__remove')){equipmentRows=equipmentRows.filter(r=>r.rowId!==rowId);renderEquipmentList();return;}
-      if(e.target.closest('.equip-row__inc')){const p=productById(row.equipmentId);if(p&&row.quantity<p.available)row.quantity++;renderEquipmentList();return;}
+      if(e.target.closest('.equip-row__inc')){const p=productById(row.equipmentId);if(p&&row.quantity<maxBorrowableUnits(p.available,p.total))row.quantity++;renderEquipmentList();return;}
       if(e.target.closest('.equip-row__dec')){if(row.quantity>1)row.quantity--;renderEquipmentList();}
     });
     $('equipmentList').addEventListener('change',e=>{
