@@ -21,6 +21,19 @@ const { runIncompleteRequirementsSweep } = require('./jobs/incompleteRequirement
 
 const app = express();
 
+// Vercel (and any reverse proxy in front of this app) always sets
+// X-Forwarded-For on every request. Express's own proxy trust defaults to
+// false, and express-rate-limit deliberately throws (not just warns) when it
+// sees a forwarded-for header with proxy trust unset, since it can't safely
+// tell real users apart in that state — this was silently turning every
+// request to the 6 rate-limited auth routes below into a 500 once deployed
+// behind Vercel (never reproduced in local dev, since localhost never sends
+// X-Forwarded-For). `1` trusts exactly one hop (Vercel's own edge) — not
+// `true`, which express-rate-limit's own validation separately warns against
+// because it would let a client spoof its own IP via that same header and
+// dodge rate limiting entirely.
+app.set('trust proxy', 1);
+
 // Core middleware
 // client/ pages use inline <script> blocks and inline onclick/onchange handlers
 // throughout (not external .js files), so helmet's default CSP — which blocks
