@@ -12,7 +12,7 @@ A capstone project implementing a web-based Admin System and User System for cen
 - **Auth:** Passport.js / Auth.js, JWT, Google OAuth 2.0
 - **QR Code:** qrcode (generation), html5-qrcode (scanning)
 - **Reports:** PDFKit/Puppeteer, ExcelJS, Chart.js
-- **Notifications:** Gmail SMTP (dev), Brevo (prod), Semaphore SMS
+- **Notifications:** Gmail SMTP (dev and prod), Semaphore SMS
 - **Deployment:** Vercel or Railway
 
 ## Project Structure
