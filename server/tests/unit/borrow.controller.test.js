@@ -154,6 +154,87 @@ describe('createSelfRequest — Green/Yellow/Red availability-threshold caps', (
   });
 });
 
+// 2026-09-12: project-leader-requested addition — a per-equipment minimum
+// stock floor at 25% of totalQuantity, on top of the fixed Green/Yellow/Red
+// bands above. This matters most for equipment with a large total, where
+// the fixed bands alone would keep allowing borrowing well past the point
+// SDPO wants a quarter of stock held back (e.g. 25% of a 20-unit total is
+// 5, which the fixed bands alone still treat as Yellow/1-unit-allowed).
+describe('createSelfRequest — 25%-of-total minimum-stock floor', () => {
+  const baseReq = (items) => ({ user: { id: 9 }, body: { items } });
+
+  beforeEach(() => {
+    Borrower.findOne.mockResolvedValue({ id: 5, firstName: 'Juan', lastName: 'Dela Cruz' });
+  });
+
+  test('blocks borrowing entirely once available drops to the 25%-of-total floor, even though the fixed Yellow band alone would allow 1 unit', async () => {
+    // total 20 -> floor = ceil(20 * 0.25) = 5; available 5 is Yellow under
+    // the fixed bands (would normally allow 1 unit) but is at the floor.
+    Equipment.findByPk.mockResolvedValueOnce({
+      id: 1,
+      equipmentName: 'Cones',
+      availableQuantity: 5,
+      totalQuantity: 20
+    });
+    await expect(
+      ctrl.createSelfRequest(baseReq([{ equipmentId: 1, quantity: 1 }]), mockRes())
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/25% minimum-stock threshold/)
+    });
+    expect(Item.update).not.toHaveBeenCalled();
+  });
+
+  test('still allows borrowing when available is just above the 25%-of-total floor', async () => {
+    // total 20 -> floor = 5; available 6 is above the floor and Green under
+    // the fixed bands, so 2 units should still be allowed.
+    const equipment = {
+      id: 1,
+      equipmentName: 'Cones',
+      availableQuantity: 6,
+      totalQuantity: 20,
+      decrement: jest.fn().mockResolvedValue()
+    };
+    Equipment.findByPk.mockResolvedValueOnce(equipment);
+    Item.findAll.mockResolvedValueOnce([
+      { id: 301, equipmentId: 1, itemCode: 'CN-1-001' },
+      { id: 302, equipmentId: 1, itemCode: 'CN-1-002' }
+    ]);
+    Transaction.create.mockResolvedValueOnce({ id: 57 });
+    Transaction.findByPk.mockResolvedValueOnce(stubFindByPkResult({ id: 57 }));
+
+    await ctrl.createSelfRequest(baseReq([{ equipmentId: 1, quantity: 2 }]), mockRes());
+
+    expect(equipment.decrement).toHaveBeenCalledWith('availableQuantity', expect.objectContaining({ by: 2 }));
+  });
+
+  test('rounds the floor up (ceil), so a total not evenly divisible by 4 still blocks at the stricter integer floor', async () => {
+    // total 10 -> floor = ceil(10 * 0.25) = ceil(2.5) = 3.
+    Equipment.findByPk.mockResolvedValueOnce({
+      id: 1,
+      equipmentName: 'Badminton Rackets',
+      availableQuantity: 3,
+      totalQuantity: 10
+    });
+    await expect(
+      ctrl.createSelfRequest(baseReq([{ equipmentId: 1, quantity: 1 }]), mockRes())
+    ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  test('a fixed-band Red rejection message is unchanged (does not claim the 25% floor) when totalQuantity is unknown', async () => {
+    // No totalQuantity on the mock at all — the floor check must skip
+    // cleanly rather than throwing on NaN, and the original fixed-band
+    // message must still be used.
+    Equipment.findByPk.mockResolvedValueOnce({ id: 1, equipmentName: 'Volleyball', availableQuantity: 2 });
+    await expect(
+      ctrl.createSelfRequest(baseReq([{ equipmentId: 1, quantity: 1 }]), mockRes())
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/minimum-stock guideline/)
+    });
+  });
+});
+
 describe('release() re-validates items are still Reserved before releasing', () => {
   test('refuses to release when an item has drifted out of Reserved', async () => {
     const txn = stubFindByPkResult({

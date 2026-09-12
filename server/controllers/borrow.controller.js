@@ -34,10 +34,32 @@ const INCLUDE = [
 // item) intentionally does not apply this cap; that in-person judgment call
 // is the discretion the spec is describing. The Director's approve() step
 // is a separate, later checkpoint and is likewise left to their judgment.
-function maxBorrowableUnits(availableQuantity) {
-  if (availableQuantity > 5) return 2;
-  if (availableQuantity >= 4) return 1;
-  return 0;
+//
+// On top of those fixed bands, each equipment also has its own minimum-
+// stock floor at 25% of its total quantity (project-leader decision,
+// 2026-09-12): once availableQuantity drops to or below that floor,
+// borrowing is blocked outright regardless of which fixed band it's also
+// in — this matters most for larger-total equipment, where the fixed "1-3"
+// red band alone would let it stay borrowable well past the point SDPO
+// wants a reserve kept back (e.g. 25% of a 20-unit total is 5, which the
+// fixed bands alone would still treat as Yellow/1-unit-allowed). Computed
+// with Math.ceil so the floor never rounds down to less than a true quarter
+// of stock. Equipment with an unknown/non-positive totalQuantity skips this
+// check entirely and falls back to the fixed bands alone.
+function lowStockFloor(totalQuantity) {
+  return Math.ceil(totalQuantity * 0.25);
+}
+
+function maxBorrowableUnits(availableQuantity, totalQuantity) {
+  let cap;
+  if (availableQuantity > 5) cap = 2;
+  else if (availableQuantity >= 4) cap = 1;
+  else cap = 0;
+
+  if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity <= lowStockFloor(totalQuantity)) {
+    cap = 0;
+  }
+  return cap;
 }
 
 // Late Return Policy, per the approved RSU SDPO spec: "Borrowers who fail to
@@ -339,12 +361,19 @@ exports.createSelfRequest = async (req, res) => {
         throw err;
       }
 
-      const cap = maxBorrowableUnits(equipment.availableQuantity);
+      const cap = maxBorrowableUnits(equipment.availableQuantity, equipment.totalQuantity);
       if (quantity > cap) {
+        const atFloor =
+          cap === 0 &&
+          Number.isFinite(equipment.totalQuantity) &&
+          equipment.totalQuantity > 0 &&
+          equipment.availableQuantity <= lowStockFloor(equipment.totalQuantity);
         const err = new Error(
-          cap === 0
-            ? `"${equipment.equipmentName}" is low in stock (${equipment.availableQuantity} available) and can't be borrowed right now under the SDPO's minimum-stock guideline.`
-            : `Only ${cap} unit(s) of "${equipment.equipmentName}" may be borrowed per request while stock is at ${equipment.availableQuantity} available (SDPO minimum-stock guideline).`
+          atFloor
+            ? `Warning: "${equipment.equipmentName}" can't be borrowed at this moment — only ${equipment.availableQuantity} of ${equipment.totalQuantity} left, at or below the SDPO's 25% minimum-stock threshold.`
+            : cap === 0
+              ? `"${equipment.equipmentName}" is low in stock (${equipment.availableQuantity} available) and can't be borrowed right now under the SDPO's minimum-stock guideline.`
+              : `Only ${cap} unit(s) of "${equipment.equipmentName}" may be borrowed per request while stock is at ${equipment.availableQuantity} available (SDPO minimum-stock guideline).`
         );
         err.statusCode = 409;
         throw err;

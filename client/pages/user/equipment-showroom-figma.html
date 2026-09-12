@@ -137,6 +137,13 @@
     .equip-badge--available{background:#ecfdf5;color:#00865d}
     .equip-badge--limited{background:#fef3c7;color:var(--amber)}
     .equip-badge--low{background:#fef2f2;color:#c10007}
+    /* Minimum-stock warning note — separate from the available/limited/low
+       color badges above, which stay exactly as they were. This only
+       appears once stock is at or below the SDPO's 25% minimum-stock floor,
+       where borrowing is blocked outright (see minStockFloor() below and
+       its server-side counterpart, maxBorrowableUnits() in
+       borrow.controller.js). */
+    .equip-min-stock-note{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#c10007;margin-top:6px}
     .equip-row__stepper{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px}
     .equip-row__stepper button{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:14px;line-height:1;cursor:pointer;color:#1d293d}
     .equip-row__stepper button:disabled{opacity:.4;cursor:not-allowed}
@@ -462,6 +469,15 @@
     }
     const STOCK_LABEL={available:'Available',limited:'Low Stock',low:'Critical Stock'};
 
+    /* SDPO minimum-stock floor (project-leader decision, 2026-09-12): once
+       available drops to or below 25% of an equipment's total, borrowing is
+       blocked entirely — separate from, and on top of, the color badges
+       above, which are unchanged. Mirrors maxBorrowableUnits()'s floor in
+       server/controllers/borrow.controller.js; kept in sync manually since
+       this page doesn't share a module with the server. */
+    function minStockFloor(total){return Math.ceil(total*0.25);}
+    function belowMinStock(available,total){return total>0&&available<=minStockFloor(total);}
+
     const $=id=>document.getElementById(id);
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const searchInput=$('searchInput'),grid=$('grid'),toolbarCount=$('toolbarCount');
@@ -518,6 +534,9 @@
       const level=stockLevel(p.available,p.total);
       const badgeClass=level==='available'?'available':level;
       const badgeLabel=p.available<=0?'Unavailable':level==='available'?'Available':`${STOCK_LABEL[level]} — ${p.available} left`;
+      const minStockBlocked=p.available>0&&belowMinStock(p.available,p.total);
+      const canBorrow=p.available>0&&!minStockBlocked;
+      const btnLabel=p.available<=0?'Unavailable':minStockBlocked?'Not Available to Borrow':'Request to Borrow';
       return `<article class="equipment-card" data-id="${p.id}">
         <div class="equipment-card__media">
           <img src="${p.photoUrl||productImage(p.category)}" alt="${esc(p.category)}" onerror="this.onerror=null;this.src='${productSvg(icon[p.category]||'🏅')}'">
@@ -528,8 +547,9 @@
           <h3>${esc(p.name)}</h3>
           <div class="equipment-card__tags"><span class="chip chip--neutral">${esc(p.category)}</span><span class="chip chip--good">Good</span></div>
           <div class="equipment-card__stock-row${level!=='available'?' equipment-card__stock-row--'+level:''}"><span>Available</span><span>${p.available} / ${p.total}</span></div>
+          ${minStockBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is at the SDPO\'s minimum threshold — you can\'t borrow this right now.</div>':''}
           <div class="equipment-card__actions">
-            <button type="button" class="btn-details" data-id="${p.id}" ${p.available?'':'disabled'}>${p.available?'Request to Borrow':'Unavailable'}</button>
+            <button type="button" class="btn-details" data-id="${p.id}" ${canBorrow?'':'disabled'}>${btnLabel}</button>
           </div>
         </div>
       </article>`;
@@ -642,7 +662,12 @@
     const productById=id=>products.find(p=>p.id===id);
 
     function equipmentOptionsHtml(selectedId){
-      const opts=products.map(p=>`<option value="${p.id}" ${p.id===selectedId?'selected':''} ${p.available?'':'disabled'}>${esc(p.name)} (Available: ${p.available})</option>`).join('');
+      const opts=products.map(p=>{
+        const blocked=p.available>0&&belowMinStock(p.available,p.total);
+        const disabled=!p.available||blocked;
+        const suffix=blocked?' — below minimum stock':'';
+        return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${p.available})${suffix}</option>`;
+      }).join('');
       return `<option value="">Select equipment...</option>${opts}`;
     }
 
@@ -652,15 +677,17 @@
         const product=productById(row.equipmentId);
         const available=product?product.available:0;
         const level=product?stockLevel(available,product.total):'available';
+        const minBlocked=product&&belowMinStock(available,product.total);
         return `<div class="equip-row" data-row="${row.rowId}">
           <div class="equip-row__main">
             <select class="equip-row__select">${equipmentOptionsHtml(row.equipmentId)}</select>
             <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>`:''}</div>
+            ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: below the SDPO\'s minimum stock threshold — choose a different item.</div>':''}
           </div>
           <div class="equip-row__stepper">
             <button type="button" class="equip-row__dec" ${row.quantity<=1?'disabled':''}>−</button>
             <span>${row.quantity}</span>
-            <button type="button" class="equip-row__inc" ${!product||row.quantity>=available?'disabled':''}>+</button>
+            <button type="button" class="equip-row__inc" ${!product||minBlocked||row.quantity>=available?'disabled':''}>+</button>
           </div>
           <button type="button" class="equip-row__remove" title="Remove equipment"><img src="../../assets/icons/icon-trash.svg" alt="" style="width:12px;height:12px"></button>
         </div>`;
