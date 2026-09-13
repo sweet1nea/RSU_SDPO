@@ -86,6 +86,24 @@ function quarterRange(req) {
   return { year, quarter, start, end };
 }
 
+// "Report Period: January – March 2024" / "Quarter: Q1 2024 (January –
+// March)" — the two lines under the letterhead on the official report
+// format (2026-09-13 redesign). Derived from the same {year, quarter}
+// quarterRange() already computes for the 4 quarter-bound reports below, so
+// this never drifts out of sync with the actual query range those reports
+// are filtered to.
+const QUARTER_MONTHS = [
+  ['January', 'February', 'March'],
+  ['April', 'May', 'June'],
+  ['July', 'August', 'September'],
+  ['October', 'November', 'December']
+];
+function periodLabel(year, quarter) {
+  const months = QUARTER_MONTHS[quarter - 1] || QUARTER_MONTHS[0];
+  const range = `${months[0]} – ${months[2]} ${year}`;
+  return { range, quarterLabel: `Q${quarter} ${year} (${months[0]} – ${months[2]})` };
+}
+
 const TXN_INCLUDE_FOR_REPORTS = [
   { model: Borrower, as: 'borrower' },
   {
@@ -119,7 +137,7 @@ const POST_APPROVAL_STATUSES = new Set([
 ]);
 
 exports.borrowing = async (req, res) => {
-  const { start, end } = quarterRange(req);
+  const { start, end, year, quarter } = quarterRange(req);
   const txns = await Transaction.findAll({
     where: { requestDatetime: { [Op.gte]: start, [Op.lt]: end } },
     include: TXN_INCLUDE_FOR_REPORTS,
@@ -144,6 +162,7 @@ exports.borrowing = async (req, res) => {
 
   const reportData = {
     title: 'BORROWING REPORT',
+    period: periodLabel(year, quarter),
     heads: ['Transaction No.', 'Borrower', 'Equipment', 'Qty', 'Borrow Date', 'Expected Return', 'Status'],
     data,
     stats: [
@@ -158,7 +177,7 @@ exports.borrowing = async (req, res) => {
 };
 
 exports.overdue = async (req, res) => {
-  const { start, end } = quarterRange(req);
+  const { start, end, year, quarter } = quarterRange(req);
   const now = new Date();
   const txns = await Transaction.findAll({
     where: {
@@ -190,6 +209,7 @@ exports.overdue = async (req, res) => {
 
   const reportData = {
     title: 'OVERDUE REPORT',
+    period: periodLabel(year, quarter),
     heads: ['Borrower', 'Equipment', 'Qty', 'Due Date', 'Days Overdue'],
     data,
     stats: [
@@ -203,7 +223,7 @@ exports.overdue = async (req, res) => {
 };
 
 exports.utilization = async (req, res) => {
-  const { start, end } = quarterRange(req);
+  const { start, end, year, quarter } = quarterRange(req);
   const [equipment, details] = await Promise.all([
     Equipment.findAll({ include: [{ model: Category, as: 'category' }] }),
     TransactionDetail.findAll({
@@ -230,6 +250,7 @@ exports.utilization = async (req, res) => {
 
   const reportData = {
     title: 'EQUIPMENT UTILIZATION REPORT',
+    period: periodLabel(year, quarter),
     heads: ['Equipment', 'Category', 'Times Borrowed', 'Available Quantity'],
     data,
     stats: [
@@ -243,7 +264,7 @@ exports.utilization = async (req, res) => {
 };
 
 exports.history = async (req, res) => {
-  const { start, end } = quarterRange(req);
+  const { start, end, year, quarter } = quarterRange(req);
   const txns = await Transaction.findAll({
     where: { requestDatetime: { [Op.gte]: start, [Op.lt]: end } },
     include: TXN_INCLUDE_FOR_REPORTS,
@@ -268,6 +289,7 @@ exports.history = async (req, res) => {
 
   const reportData = {
     title: 'TRANSACTION HISTORY REPORT',
+    period: periodLabel(year, quarter),
     heads: ['Date', 'Transaction No.', 'Borrower', 'Equipment', 'Action', 'Status'],
     data,
     stats: [['Total Transactions', String(txns.length)]]

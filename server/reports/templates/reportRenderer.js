@@ -23,6 +23,17 @@ const ExcelJS = require('exceljs');
 const LOGO_PATH = path.join(__dirname, '..', '..', '..', 'client', 'assets', 'images', 'rsu-sdpo-logo.png');
 const LOGO_EXISTS = fs.existsSync(LOGO_PATH);
 
+// Plain Romblon State University seal — the left-hand seal in the official
+// 2026-09-13 letterhead redesign, distinct from the green SDPO gear logo
+// above (which sits on the right, matching the approved mockup). No such
+// asset exists in the repo yet, so this is existence-checked exactly like
+// LOGO_EXISTS above: drop the real seal file at this exact path and it
+// starts appearing with no further code changes. Until then the header
+// falls back to the single SDPO logo (see headerTop below) rather than
+// leaving a blank gap or fabricating a placeholder seal.
+const SEAL_PATH = path.join(__dirname, '..', '..', '..', 'client', 'assets', 'images', 'rsu-university-seal.png');
+const SEAL_EXISTS = fs.existsSync(SEAL_PATH);
+
 function slugify(title) {
   const slug = String(title || 'report')
     .toLowerCase()
@@ -38,7 +49,7 @@ function slugify(title) {
  * @param {string} [filenameBase] filename without extension; defaults to a slug of the title
  */
 function sendPdf(res, reportData, filenameBase) {
-  const { title, heads = [], data = [], stats = [] } = reportData || {};
+  const { title, period, heads = [], data = [], stats = [] } = reportData || {};
   const filename = `${filenameBase || slugify(title)}.pdf`;
 
   res.setHeader('Content-Type', 'application/pdf');
@@ -67,32 +78,78 @@ function sendPdf(res, reportData, filenameBase) {
 
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const endX = startX + usableWidth;
 
+  // ---- Official letterhead (2026-09-13 redesign, matches the approved
+  // "A4 Overdue Report Design" mockup) — Republic of the Philippines /
+  // Romblon State University / Romblon, Philippines centered between the
+  // university seal (left) and the SDPO gear logo (right), a thick rule,
+  // the office name, a second rule, then the report title. ----
   const headerTop = doc.y;
-  const LOGO_WIDTH = 42;
+  const SEAL_WIDTH = 46;
+  if (SEAL_EXISTS) {
+    try {
+      doc.image(SEAL_PATH, startX, headerTop, { width: SEAL_WIDTH });
+    } catch (err) {
+      // A corrupt/unreadable seal file should never break report
+      // generation — fall back to the single-logo/text-only header.
+      console.error('reportRenderer.sendPdf: failed to draw university seal:', err);
+    }
+  }
   if (LOGO_EXISTS) {
     try {
-      doc.image(LOGO_PATH, startX, headerTop, { width: LOGO_WIDTH });
+      doc.image(LOGO_PATH, endX - SEAL_WIDTH, headerTop, { width: SEAL_WIDTH });
     } catch (err) {
-      // A corrupt/unreadable logo file should never break report
-      // generation — fall back to the text-only header.
       console.error('reportRenderer.sendPdf: failed to draw header logo:', err);
     }
   }
 
-  doc.font('Helvetica-Bold').fontSize(16).text('RSU SDPO', { align: 'center' });
-  doc.font('Helvetica').fontSize(12).text(title || 'Report', { align: 'center' });
-  doc.fontSize(8).fillColor('#666666').text(`Generated: ${new Date().toLocaleString('en-US')}`, { align: 'center' });
-  doc.fillColor('#000000');
+  doc.y = headerTop;
+  doc.font('Helvetica').fontSize(9).text('Republic of the Philippines', startX, headerTop + 2, { width: usableWidth, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(15).text('ROMBLON STATE UNIVERSITY', startX, doc.y, { width: usableWidth, align: 'center' });
+  doc.font('Helvetica').fontSize(9).text('Romblon, Philippines', startX, doc.y, { width: usableWidth, align: 'center' });
 
-  // doc.image() with an explicit x/y draws without moving the text cursor,
-  // so the logo and the centered title block can end at different heights
-  // depending on title length/wrapping. Advance past whichever is taller
-  // before laying out the rest of the page.
-  if (LOGO_EXISTS) {
-    doc.y = Math.max(doc.y, headerTop + LOGO_WIDTH);
+  // Whichever is taller — the two seals or the centered text block — wins;
+  // doc.image() above drew without moving the cursor, so this has to be
+  // done by hand rather than relying on pdfkit's own auto-advance.
+  doc.y = Math.max(doc.y, headerTop + SEAL_WIDTH);
+  doc.moveDown(0.6);
+
+  doc.moveTo(startX, doc.y).lineTo(endX, doc.y).lineWidth(1.5).strokeColor('#000000').stroke();
+  doc.moveDown(0.35);
+  doc.font('Helvetica-Bold').fontSize(11).text('SPORTS DEVELOPMENT PROGRAM OFFICE', startX, doc.y, { width: usableWidth, align: 'center' });
+  doc.moveDown(0.35);
+  doc.moveTo(startX, doc.y).lineTo(endX, doc.y).lineWidth(1.5).strokeColor('#000000').stroke();
+  doc.moveDown(0.5);
+
+  doc.font('Helvetica-Bold').fontSize(13).text((title || 'REPORT').toUpperCase(), startX, doc.y, { width: usableWidth, align: 'center' });
+  doc.moveDown(0.6);
+
+  // "Report Period" / "Quarter" on the left vs "Generated On" on the right,
+  // sharing one row — same two explicit columns pdfkit needs whenever two
+  // independent text blocks must sit side by side rather than stack.
+  const metaY = doc.y;
+  const leftWidth = usableWidth * 0.6;
+  const rightWidth = usableWidth - leftWidth;
+  const rightX = startX + leftWidth;
+
+  let leftEndY = metaY;
+  if (period) {
+    doc.font('Helvetica').fontSize(9).fillColor('#333333');
+    doc.text(`Report Period: ${period.range}`, startX, metaY, { width: leftWidth });
+    doc.text(`Quarter: ${period.quarterLabel}`, startX, doc.y, { width: leftWidth });
+    leftEndY = doc.y;
   }
+
+  doc.font('Helvetica').fontSize(9).fillColor('#333333');
+  doc.text('Generated On:', rightX, metaY, { width: rightWidth, align: 'right' });
+  doc.text(new Date().toLocaleString('en-US'), rightX, doc.y, { width: rightWidth, align: 'right' });
+  const rightEndY = doc.y;
+
+  doc.fillColor('#000000');
+  doc.y = Math.max(leftEndY, rightEndY);
   doc.moveDown(1);
+  // ---- end letterhead ----
 
   if (stats.length) {
     doc.font('Helvetica-Bold').fontSize(10).text('Summary');
@@ -152,7 +209,7 @@ function sendPdf(res, reportData, filenameBase) {
  * @param {string} [filenameBase] filename without extension; defaults to a slug of the title
  */
 async function sendExcel(res, reportData, filenameBase) {
-  const { title, heads = [], data = [], stats = [] } = reportData || {};
+  const { title, period, heads = [], data = [], stats = [] } = reportData || {};
   const filename = `${filenameBase || slugify(title)}.xlsx`;
   const colCount = Math.max(heads.length, 1);
 
@@ -174,6 +231,18 @@ async function sendExcel(res, reportData, filenameBase) {
   genCell.value = `Generated: ${new Date().toLocaleString('en-US')}`;
   genCell.font = { italic: true, size: 9, color: { argb: 'FF666666' } };
   genCell.alignment = { horizontal: 'center' };
+
+  // Row 3 was a blank spacer before this row existed — now carries the same
+  // "Report Period" / "Quarter" line the PDF header shows, for the 4
+  // quarter-bound reports that pass a `period`; left blank (spacer) for the
+  // point-in-time snapshot reports (inventory, condition) that don't.
+  if (period) {
+    sheet.mergeCells(3, 1, 3, colCount);
+    const periodCell = sheet.getCell(3, 1);
+    periodCell.value = `Report Period: ${period.range}  |  Quarter: ${period.quarterLabel}`;
+    periodCell.font = { italic: true, size: 9, color: { argb: 'FF666666' } };
+    periodCell.alignment = { horizontal: 'center' };
+  }
 
   // Official RSU SDPO seal, floated over the top-left corner of the header
   // band (rows 1-2). This only overlays visually — it never touches cell
