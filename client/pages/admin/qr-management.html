@@ -139,7 +139,19 @@ $('#png').onclick=downloadPNG;$('#printBtn').onclick=printLabels;$('#pdf').oncli
 // --- Open QR Scanner: a free-form camera scanner for any RSU-SDPO label,
 // not tied to a specific generator row. On a successful decode it opens the
 // same live-lookup page (scan.html) that the printed/engraved labels
-// themselves encode, in a new tab, so the admin doesn't lose this page.
+// themselves encode.
+//
+// 2026-09-13 fix: this used to call window.open(scanUrl,'_blank') so the
+// admin wouldn't lose this page. In practice that window.open() fires from
+// inside a requestAnimationFrame callback — several frames after the
+// button click that opened the scanner — so it's no longer inside the
+// "recent user gesture" window browsers require to let a popup through.
+// Chrome/Safari silently blocked it, which is why staff reported that
+// scanning a label "does nothing": the lookup page never opened at all.
+// Fixed by navigating this same tab instead (which popup blockers can't
+// touch), and giving scan.html a "back to QR management" link — shown only
+// when it's reached from this admin scanner — so the admin isn't stranded
+// on the public lookup page afterward.
 const scanOverlay=$('#scanOverlay'),scanVideo=$('#scanVideo'),scanStatus=$('#scanStatus'),scanCameraSelect=$('#scanCameraSelect'),scanCameraRow=document.querySelector('.scan-camera-row');
 const scanCanvas=document.createElement('canvas');const scanCtx=scanCanvas.getContext('2d',{willReadFrequently:true});
 let scanStream=null,scanRAF=null,scanLocked=false;
@@ -215,8 +227,10 @@ function handleScanResult(rawText){
   if(!code)return;
   scanLocked=true;
   scanStatus.className='scan-status ok';scanStatus.textContent=`Found: ${code} — opening lookup…`;
-  window.open('../scan.html?code='+encodeURIComponent(code),'_blank');
-  setTimeout(closeScanner,600);
+  setTimeout(()=>{
+    closeScanner();
+    location.href='../scan.html?code='+encodeURIComponent(code)+'&from=qr-admin';
+  },400);
 }
 
 scanCameraSelect.addEventListener('change',async()=>{

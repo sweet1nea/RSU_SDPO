@@ -31,10 +31,13 @@ body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;padding:22
 .row span:last-child.cond-bad{color:#c0392b}
 .note{margin-top:18px;font-size:11px;color:#8ca3c3;line-height:1.5}
 .notfound .icon{font-size:34px;margin-bottom:8px}
+.backlink{display:none;align-items:center;gap:6px;margin-bottom:14px;color:var(--blue);font-weight:700;text-decoration:none;font-size:13px}
+.backlink:hover{text-decoration:underline}
 </style></head>
 <body>
 <div class="wrap">
 <div class="brand"><span class="mark"><img src="../assets/images/icon-qr-code.png" alt=""></span><div><b>RSU-SDPO</b><small>Sports Development Program Office</small></div></div>
+<a class="backlink" id="backLink" href="admin/qr-management.html">← Back to QR Management</a>
 <div class="card" id="card"></div>
 <p class="note" id="footNote"></p>
 </div>
@@ -42,6 +45,14 @@ body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;padding:22
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
 const code=params.get('code');
+// Shown only when this page was reached from the admin's own "Open QR
+// Scanner" flow in qr-management.html (marked with from=qr-admin) — a
+// student or stakeholder scanning a printed label directly has no admin
+// session and no reason to see a link into the admin section.
+if(params.get('from')==='qr-admin'){
+  const back=$('#backLink');
+  back.style.display='inline-flex';
+}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function formatDate(iso){
