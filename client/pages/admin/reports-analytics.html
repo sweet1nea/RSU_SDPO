@@ -8,7 +8,34 @@
   <style>
     /* Standalone implementation of the Reports Figma frames. */
     .content{width:100%;max-width:1200px;margin:auto;padding:24px 62px 36px}
-    .pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.actions{display:flex;gap:7px}.calendar-link{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--line);background:var(--page);color:var(--ink);font-size:11px;text-decoration:none}.calendar-link:hover{background:var(--softline)}.btn{height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--green);background:var(--page);color:var(--green);font-size:11px;cursor:pointer}.btn.primary{background:var(--green);color:#fff}.btn.print{background:#9edccb;border-color:#9edccb;color:#fff}.filters{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:15px 13px;display:flex;align-items:end;gap:11px;margin-bottom:17px}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted)}.filters select{appearance:none;height:29px;border:1px solid var(--line);border-radius:7px;background:var(--softline);color:var(--ink);font:11px inherit;padding:0 27px 0 10px;min-width:140px;background-image:linear-gradient(45deg,transparent 50%,#8aa0b9 50%),linear-gradient(135deg,#8aa0b9 50%,transparent 50%);background-position:calc(100% - 12px) 12px,calc(100% - 9px) 12px;background-size:3px 3px,3px 3px;background-repeat:no-repeat}.field.quarter select{min-width:102px}.field.year select{min-width:82px}.filters .generate{height:30px}.reset{border-color:var(--line);color:var(--muted)}.empty{height:234px;border:1px solid var(--line);border-radius:10px;background:var(--page);display:grid;place-items:center;text-align:center;color:var(--muted)}.emptyicon{width:56px;height:56px;margin:auto auto 12px;border-radius:13px;background:#eef4fb;display:grid;place-items:center;font-size:24px;color:#c0d1e6}.empty b{display:block;color:var(--muted);margin-bottom:7px}.empty span{font-size:11px;display:block}.empty em{font-style:normal;color:var(--green);font-size:11px}.paper{max-width:542px;margin:0 auto;background:#fff;border:1px solid #d7dde5;box-shadow:0 2px 3px #182b4a20;padding:29px 38px 26px;color:#314158;min-height:570px}.reportletter{display:flex;justify-content:center;margin-bottom:6px}.reportletter .seal{width:44px;height:44px;object-fit:contain}.university{text-align:center}.university small{color:#8ba0ba;font-size:7px}.university h2{font-size:11px;margin:2px 0 1px}.university .place{font-size:7px;color:#8ba0ba}.office{text-align:center;letter-spacing:1px;font-size:8px;font-weight:600;margin-top:19px}.reporttitle{text-align:center;font-size:11px;letter-spacing:.55px;margin:9px 0 16px}.reportmeta{display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:8px;margin-bottom:15px}.reportmeta b{font-weight:600}.reporttable{width:100%;border-collapse:collapse;font-size:8px}.reporttable th{background:var(--green);color:white;text-align:left;padding:7px 7px;white-space:nowrap;font-weight:600}.reporttable td{border:1px solid #dce5ee;padding:7px 7px;vertical-align:middle}.reporttable tr:nth-child(even){background:#f8fafc}.status{font-size:7px;border-radius:9px;padding:3px 6px;white-space:nowrap}.status.good,.status.done{color:#007a55;background:#e8fbf1}.status.returned{color:#175cd3;background:#eff4ff}.status.damage{color:#ef6820;background:#fff6ed}.status.lost{color:#d92d20;background:#fef3f2}.summarylabel{font-size:8px;font-weight:700;margin:18px 0 7px}.summary{display:flex;gap:10px}.summary .stat{border:1px solid #e6edf4;background:#f8fafc;border-radius:7px;padding:8px 10px;min-width:109px}.summary .stat small{font-size:7px;color:#8aa0b9;display:block}.summary .stat b{font-size:14px;color:#009966;margin-top:3px;display:block}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:22px;font-size:8px;color:#8aa0b9}.signature{border-bottom:1px solid #aabbd0;padding-bottom:7px;margin-top:14px;color:#314158;font-weight:600}.sigrole{font-size:8px;line-height:1.45;color:#71829b;margin-top:4px}.docfoot{display:flex;justify-content:space-between;color:#9aabc1;font-size:7px;margin-top:36px}.hidden{display:none!important}
+    .pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.actions{display:flex;gap:7px}.calendar-link{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--line);background:var(--page);color:var(--ink);font-size:11px;text-decoration:none}.calendar-link:hover{background:var(--softline)}.btn{height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--green);background:var(--page);color:var(--green);font-size:11px;cursor:pointer}.btn.primary{background:var(--green);color:#fff}.btn.print{background:#9edccb;border-color:#9edccb;color:#fff}.filters{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:15px 13px;display:flex;align-items:end;gap:11px;margin-bottom:17px}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted)}.filters select{appearance:none;height:29px;border:1px solid var(--line);border-radius:7px;background:var(--softline);color:var(--ink);font:11px inherit;padding:0 27px 0 10px;min-width:140px;background-image:linear-gradient(45deg,transparent 50%,#8aa0b9 50%),linear-gradient(135deg,#8aa0b9 50%,transparent 50%);background-position:calc(100% - 12px) 12px,calc(100% - 9px) 12px;background-size:3px 3px,3px 3px;background-repeat:no-repeat}.field.quarter select{min-width:102px}.field.year select{min-width:82px}.filters .generate{height:30px}.reset{border-color:var(--line);color:var(--muted)}.empty{height:234px;border:1px solid var(--line);border-radius:10px;background:var(--page);display:grid;place-items:center;text-align:center;color:var(--muted)}.emptyicon{width:56px;height:56px;margin:auto auto 12px;border-radius:13px;background:#eef4fb;display:grid;place-items:center;font-size:24px;color:#c0d1e6}.empty b{display:block;color:var(--muted);margin-bottom:7px}.empty span{font-size:11px;display:block}.empty em{font-style:normal;color:var(--green);font-size:11px}.paper{max-width:542px;margin:0 auto;background:#fff;border:1px solid #d7dde5;box-shadow:0 2px 3px #182b4a20;padding:29px 38px 26px;color:#1f2937}
+    /* Two-seal letterhead (2026-09-13 redesign, matches the approved "A4
+       Overdue Report Design" mockup): the Romblon State University seal on
+       the left and the SDPO gear logo on the right, flanking the centered
+       Republic/University/Place text block, with a rule above and below
+       the office name. This mirrors the PDF/Excel export header in
+       server/reports/templates/reportRenderer.js exactly — that file was
+       already redesigned this way, but this on-screen preview template
+       was missed at the time, so the preview kept showing the old
+       single-centered-logo layout while the actual exported files did not. */
+    .reportletter{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px}.reportletter .seal{width:44px;height:44px;object-fit:contain;flex-shrink:0}.university{text-align:center}.university small{color:#4b5563;font-size:7px}.university h2{font-size:11px;margin:2px 0 1px;color:#0f172a}.university .place{font-size:7px;color:#4b5563}.letterrule{border-top:1.4px solid #000;margin:8px 0}.office{text-align:center;letter-spacing:1px;font-size:8px;font-weight:700;color:#0f172a}.reporttitle{text-align:center;font-size:11px;letter-spacing:.55px;margin:9px 0 12px;font-weight:700;color:#0f172a}
+    /* Meta row (2026-09-14 redesign, matches server/reports/templates/
+       reportRenderer.js's PDF exactly): "Report Period"/"Quarter" stacked
+       on the left, "Generated On" on the right, sharing one row — not the
+       old 2x2 grid that also carried "Generated By" (never part of the PDF
+       header at all; that credit still appears below in the Prepared-by
+       signature line, just not up here). */
+    .reportmeta{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;font-size:8px;margin-bottom:12px;color:#374151}.reportmeta .meta-right{text-align:right}.reportmeta div+div{margin-top:2px}.reportmeta b{font-weight:600;color:#111827}
+    /* Summary (moved to sit right after the meta row and before the table,
+       same position/order as the PDF, and restyled from stat "tiles" to a
+       plain bold-label + text-line list — the PDF's Summary is plain text,
+       not colored cards). */
+    .summarylabel{font-size:9px;font-weight:700;margin:0 0 4px;color:#0f172a}.summary{display:flex;flex-direction:column;gap:1px;font-size:8px;margin-bottom:14px;color:#374151}.summary b{font-weight:600;color:#111827}
+    /* Table: plain header (bold black text over a rule, no colored banner)
+       and borderless rows with only a faint separator — mirrors the PDF's
+       drawRow/drawHeader, which never fills or outlines cells. */
+    .reporttable{width:100%;border-collapse:collapse;font-size:8px}.reporttable th{background:#fff;color:#0f172a;text-align:left;padding:6px 7px;white-space:nowrap;font-weight:700;border-bottom:1.6px solid #000}.reporttable td{padding:6px 7px;vertical-align:middle;border-bottom:1px solid #e8edf3;color:#1f2937}
+    .signatures{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:22px;font-size:8px;color:#8aa0b9}.signature{border-bottom:1px solid #aabbd0;padding-bottom:7px;margin-top:14px;color:#314158;font-weight:600}.sigrole{font-size:8px;line-height:1.45;color:#71829b;margin-top:4px}.docfoot{display:flex;justify-content:space-between;color:#9aabc1;font-size:7px;margin-top:36px}.hidden{display:none!important}
     @media(max-width:850px){.content{padding:22px 20px}.filters{flex-wrap:wrap}.pagehead{flex-wrap:wrap}}
     @media(max-width:570px){.content{padding:18px 12px}.filters{gap:8px}.filters .field{flex:1}.filters select{min-width:100%;width:100%}.paper{padding:24px 14px;overflow-x:auto}.reporttable{min-width:480px}.docfoot{gap:15px}.actions{flex-wrap:wrap}}
     /* Printing previously printed the whole page — sidebar, topbar, filter
@@ -25,9 +52,10 @@
        actually show through a hidden ancestor. Confirmed with a real
        headless-Chromium print-to-PDF render, not just reasoned about. */
     @media print{
+      @page{margin:14mm}
       body *{visibility:hidden}
       #paper,#paper *{visibility:visible}
-      #paper{position:absolute;top:0;left:0;width:100%;margin:0;box-shadow:none;border:0}
+      #paper{position:absolute;top:0;left:0;width:100%;margin:0;box-shadow:none;border:0;max-width:none}
     }
   </style>
 </head>
@@ -57,7 +85,13 @@
       yearSel.innerHTML=opts;
     })();
 
-    function pill(v){let c=v==='Completed'?'done':v==='Returned'?'returned':v==='Good'?'good':v==='Damaged'?'damage':v==='Lost'?'lost':'';return c?`<span class="status ${c}">${esc(v)}</span>`:esc(v)}
+    // Plain text, no colored badge — matches the PDF's own table cells,
+    // which are always plain Helvetica text with no fill/color per value
+    // (server/reports/templates/reportRenderer.js#drawRow never sets a
+    // per-cell fillColor). The colored status "pill" chips this used to
+    // render were the on-screen preview's own addition, not something the
+    // downloadable PDF/Excel ever had.
+    function pill(v){return esc(v)}
 
     function showEmpty(){paper.classList.add('hidden');empty.classList.remove('hidden')}
 
@@ -94,11 +128,24 @@
         Director:'Director, Sports Development Program Office'
       };
       const generatedByRole=esc(ROLE_TITLES[currentUser&&currentUser.userRole]||'SDPO Staff');
-      const generatedOn=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+      // Matches reportRenderer.js's own `new Date().toLocaleString('en-US')`
+      // (date + time) instead of a date-only string, so "Generated On" reads
+      // the same way here as it does in the downloaded PDF/Excel.
+      const generatedOn=new Date().toLocaleString('en-US');
       const docId=`RSU-SDPO-${year}-Q${quarter}-${String(Date.now()).slice(-4)}`;
 
       empty.classList.add('hidden');paper.classList.remove('hidden');
-      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><span><b>Report Period:</b> ${QUARTER_MONTHS[quarter]}, ${year}</span><span><b>Generated On:</b> ${generatedOn}</span><span><b>Quarter:</b> ${QUARTER_LABELS[quarter]}</span><span><b>Generated By:</b> ${generatedBy}</span></div><table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="summarylabel">SUMMARY</div><div class="summary">${r.stats.map(s=>`<div class="stat"><small>${esc(s[0])}</small><b>${esc(s[1])}</b></div>`).join('')}</div><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>System: RSU SDPO</span><span>Page 1 of 1</span></div>`;
+      // Layout order below (letterhead -> meta -> Summary -> table ->
+      // signatures/footer) and the meta row's own left/right split match
+      // server/reports/templates/reportRenderer.js's PDF exactly: "Report
+      // Period"/"Quarter" stacked on the left, "Generated On" alone on the
+      // right, then a plain-text Summary list (not stat tiles) sitting
+      // BEFORE the table rather than after it. "Generated By" is no longer
+      // shown up here (the PDF never had it) — it still appears below in
+      // the Prepared-by signature line, which the PDF doesn't render at all
+      // but is kept here since it's a genuinely useful on-screen/print
+      // addition, not something being removed for parity's sake.
+      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left"><div><b>Report Period:</b> ${QUARTER_MONTHS[quarter]}, ${year}</div><div><b>Quarter:</b> ${QUARTER_LABELS[quarter]}</div></div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>System: RSU SDPO</span><span>Page 1 of 1</span></div>`;
     }
 
     function showToast(message){

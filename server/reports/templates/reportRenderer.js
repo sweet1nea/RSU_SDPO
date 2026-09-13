@@ -226,36 +226,71 @@ async function sendExcel(res, reportData, filenameBase) {
   titleCell.font = { bold: true, size: 14 };
   titleCell.alignment = { horizontal: 'center' };
 
-  sheet.mergeCells(2, 1, 2, colCount);
-  const genCell = sheet.getCell(2, 1);
-  genCell.value = `Generated: ${new Date().toLocaleString('en-US')}`;
-  genCell.font = { italic: true, size: 9, color: { argb: 'FF666666' } };
-  genCell.alignment = { horizontal: 'center' };
-
-  // Row 3 was a blank spacer before this row existed — now carries the same
-  // "Report Period" / "Quarter" line the PDF header shows, for the 4
-  // quarter-bound reports that pass a `period`; left blank (spacer) for the
-  // point-in-time snapshot reports (inventory, condition) that don't.
+  // Row 2 mirrors the PDF letterhead's meta line: "Report Period"/"Quarter"
+  // on the left, "Generated On" on the right, sharing one row — instead of
+  // two separate full-width centered lines. For the point-in-time snapshot
+  // reports (inventory, condition) that don't carry a `period`, "Generated
+  // On" simply takes the full width, right-aligned to match where it sits
+  // when a period is present.
+  const leftSpan = Math.max(Math.ceil(colCount / 2), 1);
+  const generatedOnText = `Generated On: ${new Date().toLocaleString('en-US')}`;
   if (period) {
-    sheet.mergeCells(3, 1, 3, colCount);
-    const periodCell = sheet.getCell(3, 1);
-    periodCell.value = `Report Period: ${period.range}  |  Quarter: ${period.quarterLabel}`;
-    periodCell.font = { italic: true, size: 9, color: { argb: 'FF666666' } };
-    periodCell.alignment = { horizontal: 'center' };
-  }
+    sheet.mergeCells(2, 1, 2, leftSpan);
+    const periodCell = sheet.getCell(2, 1);
+    periodCell.value = `Report Period: ${period.range}   Quarter: ${period.quarterLabel}`;
+    periodCell.font = { italic: true, size: 9, color: { argb: 'FF555555' } };
+    periodCell.alignment = { horizontal: 'left' };
 
-  // Official RSU SDPO seal, floated over the top-left corner of the header
-  // band (rows 1-2). This only overlays visually — it never touches cell
-  // values, so the `RSU SDPO - <title>` banner text and every downstream
-  // row/column offset the rest of this function (and its tests) depend on
-  // are unaffected whether or not the logo file is present.
+    if (leftSpan < colCount) {
+      sheet.mergeCells(2, leftSpan + 1, 2, colCount);
+    }
+    const genCell = sheet.getCell(2, leftSpan + 1);
+    genCell.value = generatedOnText;
+    genCell.font = { italic: true, size: 9, color: { argb: 'FF555555' } };
+    genCell.alignment = { horizontal: 'right' };
+  } else {
+    sheet.mergeCells(2, 1, 2, colCount);
+    const genCell = sheet.getCell(2, 1);
+    genCell.value = generatedOnText;
+    genCell.font = { italic: true, size: 9, color: { argb: 'FF555555' } };
+    genCell.alignment = { horizontal: 'right' };
+  }
+  // Row 3 stays a blank spacer, matching the PDF's own gap between the
+  // letterhead and the Summary/table below.
+
+  // Official RSU SDPO seal + the Romblon State University seal, floated over
+  // the top-left/top-right corners of the header band (rows 1-2) — the same
+  // two-seal branding used in the PDF/on-screen letterhead (university seal
+  // left, SDPO gear logo right). This only overlays visually — it never
+  // touches cell values, so the `RSU SDPO - <title>` banner text and every
+  // downstream row/column offset the rest of this function (and its tests)
+  // depend on are unaffected whether or not either logo file is present.
+  sheet.getRow(1).height = 30;
+  sheet.getRow(2).height = 18;
+  if (SEAL_EXISTS) {
+    try {
+      const sealImageId = workbook.addImage({ filename: SEAL_PATH, extension: 'png' });
+      sheet.addImage(sealImageId, {
+        tl: { col: 0.15, row: 0.15 },
+        ext: { width: 46, height: 46 }
+      });
+    } catch (err) {
+      console.error('reportRenderer.sendExcel: failed to embed header seal:', err);
+    }
+  }
   if (LOGO_EXISTS) {
     try {
-      sheet.getRow(1).height = 30;
-      sheet.getRow(2).height = 18;
       const logoImageId = workbook.addImage({ filename: LOGO_PATH, extension: 'png' });
+      // 0.65 rather than 0.3 into the last column: for a report with only a
+      // few (wide) columns, e.g. the 5-column Equipment Condition Report,
+      // the centered "RSU SDPO - <title>" banner text can run far enough
+      // right to visually collide with a logo anchored too close to that
+      // column's own left edge — confirmed by rendering a real populated
+      // report through LibreOffice and looking at it, not just reasoned
+      // about. Anchoring further right (past where the title text ends)
+      // clears that overlap while staying inside the sheet's used range.
       sheet.addImage(logoImageId, {
-        tl: { col: 0.15, row: 0.15 },
+        tl: { col: colCount + 0.1, row: 0.15 },
         ext: { width: 46, height: 46 }
       });
     } catch (err) {
@@ -279,9 +314,15 @@ async function sendExcel(res, reportData, filenameBase) {
     heads.forEach((h, i) => {
       headerRow.getCell(i + 1).value = h;
     });
+    // Plain white header row with a bold black bottom border — matches the
+    // PDF's own table header (drawRow + the thin rule under it), replacing
+    // the solid-color banner row this used to render as. A colored fill
+    // here was the biggest visual mismatch reported against the PDF
+    // template: the PDF has never had a colored header band, only bold text
+    // over a rule.
     headerRow.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+      cell.font = { bold: true, color: { argb: 'FF0F172A' } };
+      cell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
       cell.alignment = { vertical: 'middle' };
     });
     rowIdx += 1;
