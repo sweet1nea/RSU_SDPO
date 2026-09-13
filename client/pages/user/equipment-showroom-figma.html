@@ -78,7 +78,23 @@
        background and the text color already come from the same theme pair
        (e.g. readonly inputs, the review-qty pill) were left alone — those
        already flip together correctly and were never actually broken. */
-    .borrow-flow{display:none;position:fixed;inset:0;z-index:1000;overflow:auto;background:#f9fafb}
+    .borrow-flow{
+      display:none;position:fixed;inset:0;z-index:1000;overflow:auto;
+      background-color:#f9fafb;
+      /* Same auth-hero-background.png wallpaper as the rest of the app
+         (see .content in app-shell.css), at the same ~25% visibility —
+         pinned to its light-mode tint (not var(--hero-overlay), which
+         flips in dark mode) since this form is deliberately always-light
+         per the note above. background-attachment:fixed because, unlike
+         main/.content elsewhere, THIS element is itself the scrolling
+         container for a tall multi-step form, so a plain background would
+         otherwise scroll away with the content. */
+      background-image:linear-gradient(rgba(249,250,251,.75),rgba(249,250,251,.75)),url("../../assets/images/auth-hero-background.png");
+      background-size:cover;
+      background-position:center;
+      background-attachment:fixed;
+      background-repeat:no-repeat;
+    }
     .borrow-flow.open{display:block}
     .close-flow{position:fixed;top:16px;right:18px;border:0;border-radius:50%;height:34px;width:34px;background:#fff;color:#344054;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;cursor:pointer}
     .wizard-shell{max-width:900px;margin:0 auto;padding:56px 24px 48px}
