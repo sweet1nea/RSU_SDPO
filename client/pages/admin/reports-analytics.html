@@ -34,7 +34,7 @@
 <body>
   <div id="app-root" data-page="reports" data-title="Reports" data-subtitle="Generate official quarterly administrative reports">
     <div class="pagehead"><a class="calendar-link" href="transaction-log-report.html">▤ &nbsp; Transaction Log Report (Calendar)</a><div class="actions"><button class="btn" id="pdf">⇩ &nbsp; Export PDF</button><button class="btn" id="excel">⇩ &nbsp; Export Excel</button><button class="btn print" id="print">▣ &nbsp; Print</button></div></div>
-    <div class="filters"><div class="field"><label>Report Type</label><select id="type"><option value="empty">Select Report</option><option value="borrowing">Borrowing Report</option><option value="overdue">Overdue Report</option><option value="utilization">Equipment Utilization Report</option><option value="inventory">Equipment Inventory Report</option><option value="history">Transaction History Report</option><option value="condition">Equipment Condition Report</option></select></div><div class="field quarter"><label>Quarter</label><select id="quarter"><option value="">Select quarter...</option><option value="1" selected>1st Quarter</option><option value="2">2nd Quarter</option><option value="3">3rd Quarter</option><option value="4">4th Quarter</option></select></div><div class="field year"><label>Year</label><select id="year"></select></div><button class="btn primary generate" id="generate">▧ &nbsp; Generate Report</button><button class="btn reset" id="reset">⟳ &nbsp; Reset</button></div>
+    <div class="filters"><div class="field"><label>Report Type</label><select id="type"><option value="empty">Select Report</option><option value="borrowing">Borrowing Report</option><option value="overdue">Overdue Report</option><option value="utilization">Equipment Utilization Report</option><option value="inventory">Equipment Inventory Report</option><option value="history">Transaction History Report</option><option value="condition">Equipment Condition Report</option></select></div><div class="field quarter"><label>Quarter</label><select id="quarter"><option value="" selected>Select quarter...</option><option value="1">1st Quarter</option><option value="2">2nd Quarter</option><option value="3">3rd Quarter</option><option value="4">4th Quarter</option></select></div><div class="field year"><label>Year</label><select id="year"></select></div><button class="btn primary generate" id="generate">▧ &nbsp; Generate Report</button><button class="btn reset" id="reset">⟳ &nbsp; Reset</button></div>
     <div id="empty" class="empty"><div><div class="emptyicon">▣</div><b>No report has been generated yet.</b><span>Select a report type, quarter, and year then click</span><em>Generate Report.</em></div></div>
     <article id="paper" class="paper hidden"></article>
   </div>
@@ -47,9 +47,13 @@
     const QUARTER_MONTHS={1:'January – March',2:'April – June',3:'July – September',4:'October – December'};
 
     (function populateYears(){
+      // No year is pre-selected here — the placeholder ("Select year...")
+      // stays selected on load, matching Report Type's own "Select Report"
+      // placeholder, so every filter starts genuinely unset instead of
+      // silently defaulting to the current year on every visit.
       const current=new Date().getFullYear();
-      let opts='<option value="">Select year...</option>';
-      for(let y=current+1;y>=current-3;y--)opts+=`<option value="${y}"${y===current?' selected':''}>${y}</option>`;
+      let opts='<option value="" selected>Select year...</option>';
+      for(let y=current+1;y>=current-3;y--)opts+=`<option value="${y}">${y}</option>`;
       yearSel.innerHTML=opts;
     })();
 
@@ -135,14 +139,17 @@
       URL.revokeObjectURL(url);
     }
 
-    const DEFAULT_QUARTER='1',DEFAULT_YEAR=String(new Date().getFullYear());
     document.querySelector('#generate').onclick=()=>render(type.value);
     // Reset previously only cleared the report type — the Quarter and Year
     // selects were left at whatever the user had last picked, which reads
-    // as a broken Reset button. Now restores all three filters to their
-    // original defaults (matching the "selected" options in the markup/
-    // populateYears()) before clearing the generated report.
-    document.querySelector('#reset').onclick=()=>{type.value='empty';quarterSel.value=DEFAULT_QUARTER;yearSel.value=DEFAULT_YEAR;showEmpty()};
+    // as a broken Reset button. Now restores all three filters to the same
+    // "nothing chosen yet" placeholder state the page itself starts in
+    // (Select Report / Select quarter... / Select year...) — Quarter/Year
+    // used to snap back to 1st Quarter / the current year specifically,
+    // which was really just a second, less obvious way of the exact same
+    // "why does this always show 1st Quarter 2026" complaint the on-load
+    // defaults had.
+    document.querySelector('#reset').onclick=()=>{type.value='empty';quarterSel.value='';yearSel.value='';showEmpty()};
     document.querySelector('#print').onclick=()=>{
       if(paper.classList.contains('hidden')){showToast('Generate a report first, then Print.');return}
       window.print();

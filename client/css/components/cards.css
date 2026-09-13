@@ -26,9 +26,16 @@
   overflow: hidden;
 }
 
+/* Square (1:1), not a fixed 160px-tall rectangle — a rectangle forced every
+   photo through object-fit:cover at a ~2.4:1 width:height ratio (card width
+   ÷ 160px in the usual 3-column grid), cropping tall/narrow product photos
+   much more aggressively than intended and reading as "compressed" even
+   though nothing was actually being stretched. aspect-ratio scales with the
+   card's own width at every breakpoint (3/2/1 columns), so the crop ratio
+   stays consistent instead of getting more extreme on a wider card. */
 .equipment-card__media {
   position: relative;
-  height: 160px;
+  aspect-ratio: 1 / 1;
   background: var(--color-surface-muted);
   overflow: hidden;
 }

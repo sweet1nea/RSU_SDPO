@@ -6,11 +6,27 @@
 <style>
 :root{--blue:#1745c7;--green:#00a86b}
 *{box-sizing:border-box}
-body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;padding:22px 16px;color:#172139}
-.wrap{max-width:420px;margin:0 auto}
-.brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-.brand .mark{width:38px;height:38px;border-radius:10px;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:800}
-.brand .mark img{width:20px;height:20px;filter:brightness(0) invert(1)}
+/* This page used to just sit at the top of the viewport with body padding
+   — fine on a phone screen (which is nearly all real scans), but on a
+   wider screen (a PC webcam scan, or the admin's own browser after the
+   in-app scanner redirects here) the card was left stranded in the
+   top-left corner of a much bigger window instead of reading as the
+   centered, deliberate page it's meant to be. min-height:100vh + flex
+   centering fixes that at every viewport size; the side/vertical padding
+   is kept so the card never touches the screen edges on a small phone. */
+body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px 16px;color:#172139}
+.wrap{max-width:420px;width:100%;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;justify-content:center}
+/* Real RSU SDPO seal (rsu-sdpo-logo.png) instead of the generic QR-icon
+   glyph on a flat blue circle — this is the same seal used for the
+   report letterhead and the borrowing-form watermark elsewhere in the
+   app, so the brand mark here actually reads as "RSU SDPO" rather than
+   just "some app with a QR feature". Kept small (44px, well under the
+   50x50 the seal was asked to stay within) and on a plain white card so
+   the seal's own colors show through cleanly instead of being tinted or
+   inverted like the old icon was.  */
+.brand .mark{width:44px;height:44px;border-radius:10px;background:#fff;border:1px solid #e3e9f1;display:grid;place-items:center;padding:4px;flex-shrink:0}
+.brand .mark img{width:100%;height:100%;object-fit:contain}
 .brand b{display:block;font-size:15px}
 .brand small{color:#7286a3}
 .card{background:#fff;border:1px solid #dde6ef;border-radius:16px;box-shadow:0 4px 14px #1c355014;padding:22px;text-align:center}
@@ -36,7 +52,7 @@ body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;padding:22
 </style></head>
 <body>
 <div class="wrap">
-<div class="brand"><span class="mark"><img src="../assets/images/icon-qr-code.png" alt=""></span><div><b>RSU-SDPO</b><small>Sports Development Program Office</small></div></div>
+<div class="brand"><span class="mark"><img src="../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO"></span><div><b>RSU-SDPO</b><small>Sports Development Program Office</small></div></div>
 <a class="backlink" id="backLink" href="admin/qr-management.html">← Back to QR Management</a>
 <div class="card" id="card"></div>
 <p class="note" id="footNote"></p>
