@@ -22,7 +22,13 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'Good'
       },
       availabilityStatus: {
-        type: DataTypes.ENUM('Available', 'Borrowed', 'Reserved', 'Maintenance', 'Decommissioned'),
+        // Maintenance/Decommissioned removed 2026-09-14 per the SDPO's own
+        // revised requirements — see migration
+        // 022_remove_item_maintenance_status, which also rebuilds the real
+        // Postgres enum to match (a Sequelize DataTypes.ENUM here only
+        // controls what Sequelize itself will validate/send; it doesn't
+        // touch the already-created database type on its own).
+        type: DataTypes.ENUM('Available', 'Borrowed', 'Reserved'),
         allowNull: true,
         defaultValue: 'Available'
       },

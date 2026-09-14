@@ -77,9 +77,6 @@
   var detailsStatTotal = $("detailsStatTotal");
   var detailsStatAvailable = $("detailsStatAvailable");
   var detailsStatBorrowed = $("detailsStatBorrowed");
-  var detailsStatusExtra = $("detailsStatusExtra");
-  var detailsStatMaintenance = $("detailsStatMaintenance");
-  var detailsStatDecommissioned = $("detailsStatDecommissioned");
   var detailsCategoryWrap = $("detailsCategoryWrap");
   var detailsDescriptionWrap = $("detailsDescriptionWrap");
   var detailsQrWrap = $("detailsQrWrap");
@@ -176,12 +173,6 @@
           availableQty: e.availableQuantity,
           description: e.description || "",
           photoUrl: e.photoUrl || null,
-          // Per-unit Maintenance/Decommissioned counts (migration 021) — only
-          // present when the API eager-loaded items (list/getOne), which it
-          // always does for this endpoint; kept optional here defensively so
-          // a future response shape without it doesn't throw in the Details
-          // modal below.
-          statusCounts: e.statusCounts || null,
         };
       });
     });
@@ -433,23 +424,6 @@
     detailsStatTotal.textContent = item.totalQty;
     detailsStatAvailable.textContent = avail;
     detailsStatBorrowed.textContent = borrowedQty(item);
-
-    // Maintenance/Decommissioned units are already excluded from
-    // availableQty by the backend (qr.controller.js), so without this row
-    // they simply vanished from the picture — a director looking at "3
-    // available out of 10 total" had no way to tell whether the other 7
-    // were on loan, being repaired, or retired for good. Shown only when at
-    // least one unit is actually in one of these states, so equipment with
-    // none doesn't get an empty row of zeroes.
-    var maintCount = item.statusCounts ? item.statusCounts.Maintenance || 0 : 0;
-    var decomCount = item.statusCounts ? item.statusCounts.Decommissioned || 0 : 0;
-    if (maintCount > 0 || decomCount > 0) {
-      detailsStatMaintenance.textContent = maintCount;
-      detailsStatDecommissioned.textContent = decomCount;
-      detailsStatusExtra.hidden = false;
-    } else {
-      detailsStatusExtra.hidden = true;
-    }
 
     detailsCategoryWrap.innerHTML =
       '<span class="chip chip--neutral">' + escapeHtml(item.category) + "</span>";

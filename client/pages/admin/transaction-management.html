@@ -183,6 +183,17 @@
         const res=await fetch(`/api/borrowers/${borrowerId}/documents/${type}`,{headers:{Authorization:'Bearer '+token}});
         if(!res.ok){
           const errBody=await res.json().catch(()=>null);
+          // This fetch bypasses apiFetch (it needs the raw Response to read a
+          // blob, not apiFetch's parsed {success,data}), so the AUTH_EXPIRED
+          // handling apiFetch normally does for every other call on this page
+          // has to be duplicated here — otherwise a staff member whose token
+          // expired mid-session saw a bare "Could not load document (401)"
+          // with no path back to a working session, indistinguishable from a
+          // real permissions/storage problem.
+          if(errBody&&errBody.code==='AUTH_EXPIRED'){
+            handleExpiredSession();
+            throw new Error('Your session has expired. Please sign in again.');
+          }
           throw new Error((errBody&&errBody.message)||`Could not load document (${res.status})`);
         }
         const blob=await res.blob();

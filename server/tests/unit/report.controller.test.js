@@ -243,10 +243,10 @@ describe('GET /api/reports/inventory', () => {
   test('derives borrowed count from each item\'s own availabilityStatus, not arithmetic, and flags equipment missing QR-registered items', async () => {
     // Medium #8 from the 2026-09-08 system audit: `registered -
     // availableQuantity` over-counts "Borrowed" — a Reserved (pending, not
-    // yet released) or Maintenance item also isn't in availableQuantity,
-    // but isn't actually borrowed either. Only 1 of these 8 registered
-    // items is really out on loan; the old arithmetic would have reported
-    // 3 (8 registered - 5 available).
+    // yet released) item also isn't in availableQuantity, but isn't
+    // actually borrowed either. Only 1 of these 8 registered items is
+    // really out on loan; the old arithmetic would have reported 3
+    // (8 registered - 5 available).
     const fullyRegistered = makeEquipment({
       equipmentName: 'Basketball',
       totalQuantity: 10,
@@ -254,7 +254,7 @@ describe('GET /api/reports/inventory', () => {
       items: [
         makeItem({ availabilityStatus: 'Borrowed' }),
         makeItem({ availabilityStatus: 'Reserved' }),
-        makeItem({ availabilityStatus: 'Maintenance' }),
+        makeItem({ availabilityStatus: 'Reserved' }),
         makeItem({ availabilityStatus: 'Available' }),
         makeItem({ availabilityStatus: 'Available' }),
         makeItem({ availabilityStatus: 'Available' }),
@@ -278,8 +278,8 @@ describe('GET /api/reports/inventory', () => {
 
     const basketballRow = payload.data.data.find((r) => r[0] === 'Basketball');
     // Only the one item whose availabilityStatus is actually 'Borrowed'
-    // counts — Reserved and Maintenance items are excluded even though
-    // neither is in availableQuantity either.
+    // counts — Reserved items are excluded even though they're not in
+    // availableQuantity either.
     expect(basketballRow[4]).toBe('1');
     expect(basketballRow[5]).toBe('8');
 

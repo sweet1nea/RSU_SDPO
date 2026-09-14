@@ -315,12 +315,11 @@ exports.inventory = async (req, res) => {
     // Medium #8 from the 2026-09-08 system audit: `registered -
     // availableQuantity` still over-counts "Borrowed" — a registered item
     // that's Reserved (a pending, not-yet-released request), Damaged, Under
-    // Repair, Lost, or Decommissioned also isn't in availableQuantity, but
-    // none of those are actually borrowed either. Each Item already carries
-    // its own ground-truth availabilityStatus (set exclusively by the
-    // release/return workflow — see qr.controller.js's manual-status guard,
-    // which explicitly blocks hand-editing a Borrowed or Reserved item), so
-    // count that directly instead of deriving it arithmetically.
+    // Repair, or Lost also isn't in availableQuantity, but none of those are
+    // actually borrowed either. Each Item already carries its own
+    // ground-truth availabilityStatus (set exclusively by the
+    // release/return workflow), so count that directly instead of deriving
+    // it arithmetically.
     const borrowed = items.filter((i) => i.availabilityStatus === 'Borrowed').length;
     if (registered === 0 && e.totalQuantity > 0) missingItems += 1;
     return [

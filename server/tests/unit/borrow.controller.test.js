@@ -241,7 +241,7 @@ describe('release() re-validates items are still Reserved before releasing', () 
       id: 7,
       transactionStatus: 'Approved',
       receivedByBorrowerDatetime: new Date('2026-09-01'),
-      details: [{ item: { itemCode: 'BB-1-001', availabilityStatus: 'Maintenance', update: jest.fn(), equipment: { equipmentName: 'Basketball' } } }]
+      details: [{ item: { itemCode: 'BB-1-001', availabilityStatus: 'Available', update: jest.fn(), equipment: { equipmentName: 'Basketball' } } }]
     });
     Transaction.findByPk.mockResolvedValueOnce(txn);
 

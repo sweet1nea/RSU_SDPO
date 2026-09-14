@@ -81,73 +81,14 @@ exports.generate = async (req, res) => {
   res.status(201).json({ success: true, data: withEquipment.map(serializeItem) });
 };
 
-// Lets staff manually pull a single physical unit out of (or back into) the
-// lending pool — for repair, or to permanently retire it — independently of
-// every other unit of the same Equipment type. Deliberately separate from
-// the Borrowed/Reserved statuses, which are only ever set by the actual
-// borrow/return workflow (borrow.controller.js / return.controller.js) —
-// this endpoint refuses to touch a currently-Borrowed item at all, and
-// never sets a status other than the three below.
-const MANUAL_STATUSES = ['Available', 'Maintenance', 'Decommissioned'];
-
-exports.updateItemStatus = async (req, res) => {
-  const item = await Item.findByPk(req.params.id);
-  if (!item) {
-    const err = new Error('Item not found');
-    err.statusCode = 404;
-    throw err;
-  }
-
-  const { status } = req.body;
-  if (!MANUAL_STATUSES.includes(status)) {
-    const err = new Error(`status must be one of: ${MANUAL_STATUSES.join(', ')}`);
-    err.statusCode = 400;
-    throw err;
-  }
-  if (item.availabilityStatus === 'Borrowed') {
-    const err = new Error('This item is currently borrowed — it must be returned before its status can be changed here.');
-    err.statusCode = 409;
-    throw err;
-  }
-  if (item.availabilityStatus === 'Reserved') {
-    // The comment above already documented this intent (Borrowed/Reserved
-    // are only ever set by the actual borrow/return workflow) but the check
-    // itself only ever excluded Borrowed — Reserved items could slip
-    // through. Forcing a Reserved item to Available/Maintenance/
-    // Decommissioned here would both corrupt availableQuantity (it was
-    // already decremented for this item when it was reserved, and this path
-    // doesn't know to account for that) and silently pull equipment out from
-    // under a pending borrow request without ever cancelling it.
-    const err = new Error('This item is reserved for a pending borrow request — it must be released, returned, or that request cancelled/rejected before its status can be changed here.');
-    err.statusCode = 409;
-    throw err;
-  }
-
-  if (item.availabilityStatus !== status) {
-    // availableQuantity only ever counts units actually sitting in the
-    // lending pool (see borrow.controller.js/return.controller.js/
-    // damageLoss.controller.js, which all increment/decrement it in lockstep
-    // with an Item's own availabilityStatus) — moving in or out of
-    // 'Available' has to keep that count in sync the same way.
-    const wasAvailable = item.availabilityStatus === 'Available';
-    const willBeAvailable = status === 'Available';
-
-    await sequelize.transaction(async (t) => {
-      item.availabilityStatus = status;
-      await item.save({ transaction: t });
-      if (wasAvailable && !willBeAvailable) {
-        await Equipment.decrement('availableQuantity', { by: 1, where: { id: item.equipmentId }, transaction: t });
-      } else if (!wasAvailable && willBeAvailable) {
-        await Equipment.increment('availableQuantity', { by: 1, where: { id: item.equipmentId }, transaction: t });
-      }
-    });
-  }
-
-  const withEquipment = await Item.findByPk(item.id, {
-    include: [{ model: Equipment, as: 'equipment', include: [{ model: Category, as: 'category' }] }]
-  });
-  res.json({ success: true, data: serializeItem(withEquipment) });
-};
+// A manual "Maintenance"/"Decommissioned" status change used to live here
+// (PATCH /api/qr/items/:id/status), letting staff pull a single physical
+// unit out of the lending pool for repair or permanent retirement. Removed
+// 2026-09-14 per the SDPO's own revised requirements, along with the two
+// Item statuses themselves (see migration
+// 022_remove_item_maintenance_status). Every remaining status
+// (Available/Borrowed/Reserved) is set only by the real borrow/return
+// workflow, so there is nothing left for a manual endpoint to do.
 
 // This lookup route is intentionally public (no auth) so a QR sticker
 // scanned by any phone camera, default QR app, or USB scanner resolves —

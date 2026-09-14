@@ -335,19 +335,6 @@
   color: var(--color-primary);
 }
 
-.stock-overview__stats--extra {
-  grid-template-columns: repeat(2, 1fr);
-  margin-top: var(--space-2);
-}
-
-.stock-stat--maintenance .stock-stat__value {
-  color: #92400e;
-}
-
-.stock-stat--decommissioned .stock-stat__value {
-  color: #64748b;
-}
-
 /* ---------- Confirm (yes/no) dialog ---------- */
 .modal--confirm {
   width: 400px;

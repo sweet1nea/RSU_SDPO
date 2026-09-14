@@ -170,7 +170,19 @@
       }
       if(!res.ok){
         let message='Request failed ('+res.status+')';
-        try{const body=await res.json();if(body&&body.message)message=body.message}catch(e){}
+        try{
+          const body=await res.json();
+          // This download bypasses apiFetch (it needs the raw Response to
+          // read a blob), so apiFetch's AUTH_EXPIRED auto-sign-out has to be
+          // duplicated here too — same fix as transaction-management.html's
+          // document viewer, same underlying gap.
+          if(body&&body.code==='AUTH_EXPIRED'){
+            handleExpiredSession();
+            showToast('Your session has expired. Please sign in again.');
+            return;
+          }
+          if(body&&body.message)message=body.message;
+        }catch(e){}
         showToast('Could not export report: '+message);
         return;
       }

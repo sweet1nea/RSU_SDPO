@@ -35,8 +35,6 @@ body{font:15px/1.5 Inter,Arial,sans-serif;background:#eef2f7;margin:0;min-height
 .badge{display:inline-block;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:800;letter-spacing:.3px;margin-bottom:16px}
 .badge.available{background:#eafff5;color:#00875a}
 .badge.borrowed{background:#fff4e0;color:#b45900}
-.badge.maintenance{background:#fef3e2;color:#92400e}
-.badge.decommissioned{background:#f1f5f9;color:#64748b}
 .badge.unknown{background:#fdecea;color:#c0392b}
 .rows{text-align:left;border-top:1px solid #eef1f5;margin-top:6px}
 .row{display:flex;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid #eef1f5;font-size:13px}
@@ -109,11 +107,13 @@ async function render(){
   }
 
   const item=body.data;
-  // Maintenance/Decommissioned (S7 Phase 3) previously fell through to
-  // 'unknown' here — the same red, error-looking badge used for a status
-  // this page doesn't recognize at all, which misleads a staff member
-  // scanning an item that's simply out for repair or retired on purpose.
-  const BADGE_CLASS={Available:'available',Borrowed:'borrowed',Maintenance:'maintenance',Decommissioned:'decommissioned'};
+  // Maintenance/Decommissioned item statuses were removed 2026-09-14 per
+  // the SDPO's own revised requirements (see migration
+  // 022_remove_item_maintenance_status) — Available/Borrowed/Reserved are
+  // the only statuses that can occur now, so any other value falls through
+  // to the 'unknown' badge/no-availability-text case below, same as before
+  // these two statuses ever existed.
+  const BADGE_CLASS={Available:'available',Borrowed:'borrowed'};
   const badgeClass=BADGE_CLASS[item.status]||'unknown';
   // The top badge already names the exact status, but a staff member
   // glancing at the rows below it (not just the badge) had no plain-text
@@ -124,7 +124,7 @@ async function render(){
   // is color-coded so a damaged/lost/under-repair item doesn't read the
   // same as a Good one. Borrower details are still shown only when the
   // item is actually Borrowed, since there's no borrower to show otherwise.
-  const AVAILABILITY_TEXT={Available:'Available to borrow',Borrowed:'Borrowed — not available',Reserved:'Reserved — not available',Maintenance:'Under maintenance — not available',Decommissioned:'Decommissioned — not available'};
+  const AVAILABILITY_TEXT={Available:'Available to borrow',Borrowed:'Borrowed — not available',Reserved:'Reserved — not available'};
   const CONDITION_CLASS={Good:'cond-good',Damaged:'cond-bad',Lost:'cond-bad','Under Repair':'cond-warn'};
   const condClass=CONDITION_CLASS[item.condition]||'';
   $('#card').innerHTML=`

@@ -72,7 +72,7 @@ describe('GET /api/dashboard/summary — equipment stats', () => {
   });
 
   test('borrowedEquipment counts each item\'s own availabilityStatus === "Borrowed", not totalQuantity - availableQuantity', async () => {
-    // 5 registered items: 1 Borrowed, 1 Reserved, 1 Maintenance, 2 Available.
+    // 5 registered items: 1 Borrowed, 2 Reserved, 2 Available.
     // availableQuantity intentionally set to only 2 (matching the 2 truly
     // Available items) — the old formula would have reported 8 "borrowed"
     // (10 - 2), when really only 1 item is actually out on loan.
@@ -82,7 +82,7 @@ describe('GET /api/dashboard/summary — equipment stats', () => {
       items: [
         { availabilityStatus: 'Borrowed' },
         { availabilityStatus: 'Reserved' },
-        { availabilityStatus: 'Maintenance' },
+        { availabilityStatus: 'Reserved' },
         { availabilityStatus: 'Available' },
         { availabilityStatus: 'Available' }
       ]

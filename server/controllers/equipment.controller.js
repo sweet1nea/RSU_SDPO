@@ -6,15 +6,13 @@ const { getClient } = require('../config/supabase');
 
 const PHOTOS_BUCKET = process.env.SUPABASE_EQUIPMENT_PHOTOS_BUCKET || 'equipment-photos';
 
-// Per-unit status breakdown (Available/Borrowed/Reserved/Maintenance/
-// Decommissioned) — added alongside the Maintenance/Decommissioned item
-// statuses (migration 021) so the admin Equipment views can actually show
-// what happened to the units missing from availableQuantity, instead of
-// only a single Total/Available/Borrowed picture that can't tell "out on
-// loan" apart from "pulled for repair" or "retired for good".
-const ITEM_STATUSES = ['Available', 'Borrowed', 'Reserved', 'Maintenance', 'Decommissioned'];
+// Per-unit status breakdown (Available/Borrowed/Reserved). Originally also
+// tracked Maintenance/Decommissioned (migration 021), removed 2026-09-14
+// per the SDPO's own revised requirements alongside those two Item statuses
+// themselves — see migration 022_remove_item_maintenance_status.
+const ITEM_STATUSES = ['Available', 'Borrowed', 'Reserved'];
 function statusCounts(items) {
-  const counts = { Available: 0, Borrowed: 0, Reserved: 0, Maintenance: 0, Decommissioned: 0 };
+  const counts = { Available: 0, Borrowed: 0, Reserved: 0 };
   (items || []).forEach((item) => {
     if (Object.prototype.hasOwnProperty.call(counts, item.availabilityStatus)) {
       counts[item.availabilityStatus] += 1;
