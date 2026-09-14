@@ -52,7 +52,15 @@
        actually show through a hidden ancestor. Confirmed with a real
        headless-Chromium print-to-PDF render, not just reasoned about. */
     @media print{
-      @page{margin:14mm}
+      /* Standardized to Legal (8.5x14in) 2026-09-15, matching sendPdf's
+         `size: 'LEGAL'` and sendExcel's `paperSize: 5` in
+         server/reports/templates/reportRenderer.js — previously unset here,
+         so Print used whatever the browser/OS default page size was
+         (usually Letter), a third size from the PDF/Excel exports of the
+         same report. size:legal is a CSS Paged Media keyword browsers
+         resolve to 8.5in x 14in; the print dialog's own paper-size picker
+         can still override it per-printer, same as any other page. */
+      @page{size:legal;margin:14mm}
       body *{visibility:hidden}
       #paper,#paper *{visibility:visible}
       #paper{position:absolute;top:0;left:0;width:100%;margin:0;box-shadow:none;border:0;max-width:none}

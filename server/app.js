@@ -18,6 +18,7 @@ const sequelize = require('./database/connection');
 const { runOverdueSweep } = require('./jobs/overdueSweep');
 const { runDueDateReminderSweep } = require('./jobs/dueDateReminderSweep');
 const { runIncompleteRequirementsSweep } = require('./jobs/incompleteRequirementsSweep');
+const { buildContentSecurityPolicyDirectives } = require('./config/csp');
 
 const app = express();
 
@@ -35,29 +36,19 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Core middleware
-// client/ pages use inline <script> blocks and inline onclick/onchange handlers
-// throughout (not external .js files), so helmet's default CSP — which blocks
-// inline scripts even under 'self' — silently breaks every click on the site.
-// Relaxing script-src/script-src-attr here to match style-src's existing
-// 'unsafe-inline'. Before any public deployment, migrate inline scripts to
-// external files + nonces and drop this back to the strict default.
-// This server is plain HTTP only (no TLS listener) in development. Helmet's
-// defaults assume HTTPS: it sends Strict-Transport-Security and a CSP with
-// upgrade-insecure-requests, which tell the browser to force this origin to
-// https on every future visit. Since localhost:3000 never speaks TLS, that
-// self-inflicts ERR_INVALID_HTTP_RESPONSE / ERR_SSL_PROTOCOL_ERROR once the
-// browser caches the policy. Disable both here; re-enable hsts once this is
-// actually served over HTTPS in production.
+// See server/config/csp.js for why script-src/script-src-attr, img-src, and
+// frame-src each diverge from helmet's strict defaults. hsts is disabled
+// separately here (not in csp.js, since HSTS isn't a CSP directive): this
+// server is plain HTTP only (no TLS listener) in development, and helmet's
+// HSTS default tells the browser to force this origin to https on every
+// future visit, which self-inflicts ERR_INVALID_HTTP_RESPONSE /
+// ERR_SSL_PROTOCOL_ERROR against localhost once cached. Re-enable once this
+// is actually served over HTTPS in production.
 app.use(
   helmet({
     hsts: false,
     contentSecurityPolicy: {
-      directives: {
-        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'script-src': ["'self'", "'unsafe-inline'"],
-        'script-src-attr': ["'unsafe-inline'"],
-        'upgrade-insecure-requests': null
-      }
+      directives: buildContentSecurityPolicyDirectives()
     }
   })
 );

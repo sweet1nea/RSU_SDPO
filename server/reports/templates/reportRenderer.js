@@ -67,7 +67,15 @@ function sendPdf(res, reportData, filenameBase) {
 
   const doc = new PDFDocument({
     margin: 40,
-    size: 'A4',
+    // Standardized to Legal (8.5x14in / 612x1008pt) 2026-09-15, per the
+    // SDPO's own preference — every report render path (this PDF export,
+    // the on-screen preview's print stylesheet, and the Excel export's
+    // print page setup) now agrees on Legal so a report looks and paginates
+    // the same regardless of how it was produced. Previously A4 here while
+    // print/Excel had no explicit size at all (browser/Excel defaults,
+    // usually Letter) — three different physical page sizes for the same
+    // report.
+    size: 'LEGAL',
     layout: heads.length > 5 ? 'landscape' : 'portrait'
   });
   doc.on('error', (err) => {
@@ -219,6 +227,22 @@ async function sendExcel(res, reportData, filenameBase) {
 
   const sheetName = (title || 'Report').substring(0, 31) || 'Report';
   const sheet = workbook.addWorksheet(sheetName);
+
+  // Print page setup — standardized to Legal 2026-09-15 to match sendPdf's
+  // `size: 'LEGAL'` and the on-screen preview's `@page{size:legal}` (see
+  // reports-analytics.html). Excel had no explicit paper size at all before
+  // this, so printing/exporting-to-PDF-from-Excel silently used whatever
+  // the OS/Excel default was (usually Letter) — a third, different size
+  // from the same report. `paperSize: 5` is the OOXML (ST_PaperSize) code
+  // for Legal (8.5x14in); orientation mirrors sendPdf's landscape-when-wide
+  // rule so a report doesn't switch physical page shape between formats.
+  sheet.pageSetup = {
+    paperSize: 5,
+    orientation: heads.length > 5 ? 'landscape' : 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0
+  };
 
   sheet.mergeCells(1, 1, 1, colCount);
   const titleCell = sheet.getCell(1, 1);
