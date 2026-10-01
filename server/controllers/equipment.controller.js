@@ -284,8 +284,19 @@ exports.downloadPhoto = async (req, res) => {
     throw err;
   }
 
-  const { data, error } = await getClient().storage.from(PHOTOS_BUCKET).download(equipment.photoPath);
+  let data, error;
+  try {
+    ({ data, error } = await getClient().storage.from(PHOTOS_BUCKET).download(equipment.photoPath));
+  } catch (err) {
+    // A thrown exception here (auth/network/service failure) is a different
+    // problem than a genuinely missing file: log the real cause server-side
+    // and tell the browser's <img onerror> fallback to quietly show the
+    // category icon instead of flooding the console with an unexplained 500.
+    console.error('[equipment] Photo storage download failed for', equipment.photoPath, '-', err.message);
+    return res.status(502).json({ success: false, message: 'Could not load the photo from storage. Please try again in a moment.' });
+  }
   if (error || !data) {
+    if (error) console.error('[equipment] Photo storage download error for', equipment.photoPath, '-', error.message);
     return res.status(404).json({ success: false, message: 'Photo file is missing in storage' });
   }
   res.set('Content-Type', data.type || 'application/octet-stream');

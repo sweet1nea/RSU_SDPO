@@ -193,6 +193,7 @@ const CONTENT_TYPES = {
 };
 
 async function readDocument(key) {
+  let storageError = null;
   try {
     const { data, error } = await getClient().storage.from(DOCUMENTS_BUCKET).download(key);
     if (!error && data) {
@@ -201,16 +202,33 @@ async function readDocument(key) {
         contentType: data.type || CONTENT_TYPES[path.extname(key).toLowerCase()] || 'application/octet-stream'
       };
     }
+    storageError = error || new Error('Supabase Storage returned no data and no error');
   } catch (err) {
-    console.error('[documents] Storage download failed:', err.message);
+    storageError = err;
   }
 
+  // Fall back to local disk for uploads made before the move to Supabase.
   const resolved = path.resolve(LOCAL_UPLOADS_DIR, String(key).replace(/^[/\\]+/, ''));
-  if (!resolved.startsWith(LOCAL_UPLOADS_DIR + path.sep)) return null;
-  try {
-    const buffer = await fs.promises.readFile(resolved);
-    return { buffer, contentType: CONTENT_TYPES[path.extname(resolved).toLowerCase()] || 'application/octet-stream' };
-  } catch (e) {
-    return null;
+  if (resolved.startsWith(LOCAL_UPLOADS_DIR + path.sep)) {
+    try {
+      const buffer = await fs.promises.readFile(resolved);
+      return { buffer, contentType: CONTENT_TYPES[path.extname(resolved).toLowerCase()] || 'application/octet-stream' };
+    } catch (e) {
+      // Not found locally either — not informative on its own, fall through
+      // to the storageError check below.
+    }
   }
+
+  // Both lookups failed. A storage object that genuinely doesn't exist
+  // reports a "not found"-style error from Supabase; anything else (auth
+  // failure, network error, a thrown exception) is an unexpected storage
+  // problem, not a missing file, and staff should see that distinction
+  // instead of the misleading "missing in storage" message.
+  const notFound = storageError && /not.?found/i.test(storageError.message || '');
+  if (notFound) return null;
+
+  console.error('[documents] Storage download failed for key', key, '-', storageError && storageError.message);
+  const err = new Error('Could not load the document from storage. Please try again in a moment.');
+  err.statusCode = 502;
+  throw err;
 }
