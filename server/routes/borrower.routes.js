@@ -19,4 +19,11 @@ router.post('/me/documents', authMiddleware, borrowerOnly, uploadDocuments, catc
 router.get('/:id/documents', authMiddleware, staffOnly, catchAsync(ctrl.staffDocumentStatus));
 router.get('/:id/documents/:type', authMiddleware, staffOnly, catchAsync(ctrl.downloadDocument));
 
+// Staff uploading a walk-in borrower's ID/authorization document on their
+// behalf — e.g. a photo taken at the counter — since that borrower may not
+// have (or use) their own account to upload it themselves. This is what
+// lets review()'s document-verification step ever pass for a transaction
+// created via POST /api/borrow (the walk-in path).
+router.post('/:id/documents', authMiddleware, staffOnly, uploadDocuments, catchAsync(ctrl.uploadDocumentsForBorrower));
+
 module.exports = router;

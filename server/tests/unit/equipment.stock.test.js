@@ -122,4 +122,42 @@ describe('PUT /api/equipment/:id (update quantity)', () => {
     await expect(ctrl.update({ params: { id: 5 }, body: { totalQuantity: 1 } }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
     expect(Item.destroy).not.toHaveBeenCalled();
   });
+
+  // 2026-10-01 system audit: lowering totalQuantity used to pick ANY
+  // Available, never-borrowed unit to retire — including one that already
+  // has a real QR sticker or laser engraving on it, silently orphaning
+  // that physical label. Available-and-unused units without a label are
+  // still fair game; labeled ones must be skipped.
+  test('lowering the total skips Available units that already have a QR label, even though they were never borrowed', async () => {
+    const eq = equipmentRow({ totalQuantity: 3, availableQuantity: 3 });
+    Equipment.findByPk.mockResolvedValueOnce(eq);
+    Item.findAll.mockResolvedValueOnce([
+      { id: 1, availabilityStatus: 'Available', engravingStatus: 'Engraved' },
+      { id: 2, availabilityStatus: 'Available', engravingStatus: 'Not Engraved' },
+      { id: 3, availabilityStatus: 'Available', engravingStatus: 'Tagged' }
+    ]);
+    TransactionDetail.findAll.mockResolvedValueOnce([]);
+    Item.count.mockResolvedValue(2);
+
+    await ctrl.update({ params: { id: 5 }, body: { totalQuantity: 2 } }, mockRes());
+
+    // Only the one unlabeled unit (id 2) was eligible, and exactly it was removed.
+    expect(Item.destroy).toHaveBeenCalledWith({ where: { id: [2] }, transaction: fakeT });
+  });
+
+  test('lowering the total rejects with a specific message when only labeled units remain to retire', async () => {
+    const eq = equipmentRow({ totalQuantity: 2, availableQuantity: 2 });
+    Equipment.findByPk.mockResolvedValueOnce(eq);
+    Item.findAll.mockResolvedValueOnce([
+      { id: 1, availabilityStatus: 'Available', engravingStatus: 'Engraved' },
+      { id: 2, availabilityStatus: 'Available', engravingStatus: 'Tagged' }
+    ]);
+    TransactionDetail.findAll.mockResolvedValueOnce([]);
+
+    await expect(ctrl.update({ params: { id: 5 }, body: { totalQuantity: 1 } }, mockRes())).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('already have a QR sticker or engraving')
+    });
+    expect(Item.destroy).not.toHaveBeenCalled();
+  });
 });

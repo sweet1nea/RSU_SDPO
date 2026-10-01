@@ -55,14 +55,24 @@ async function findOwnBorrower(req) {
   return borrower;
 }
 
+async function findBorrowerById(req) {
+  const borrower = await Borrower.findByPk(req.params.id);
+  if (!borrower) {
+    const err = new Error('Borrower not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return borrower;
+}
+
 exports.myDocumentStatus = async (req, res) => {
   const borrower = await Borrower.findOne({ where: { userId: req.user.id } });
   res.json({ success: true, data: documentStatus(borrower) });
 };
 
-async function uploadToStorage(folder, field, req, file) {
+async function uploadToStorage(folder, field, ownerId, file) {
   const ext = path.extname(file.originalname).toLowerCase();
-  const key = path.posix.join(folder, `borrower-${req.user.id}-${field}-${Date.now()}${ext}`);
+  const key = path.posix.join(folder, `borrower-${ownerId}-${field}-${Date.now()}${ext}`);
   const { error } = await getClient()
     .storage.from(DOCUMENTS_BUCKET)
     .upload(key, file.buffer, { contentType: file.mimetype, upsert: false });
@@ -74,13 +84,11 @@ async function uploadToStorage(folder, field, req, file) {
   return key;
 }
 
-// Each field is independent — a borrower can upload just the ID now and the
-// authorization document later (or both together); requiredness for actually
-// submitting a request is enforced client-side against this saved state.
-exports.uploadDocuments = async (req, res) => {
-  const borrower = await findOwnBorrower(req);
-  const files = req.files || {};
-
+// Shared by both upload entry points below. ownerId keys the storage path —
+// the borrower's own userId when known, so a walk-in borrower's documents
+// land under their own id in Storage regardless of which staff member
+// happened to upload them (not the staff member's own id).
+async function saveUploadedDocuments(borrower, ownerId, files) {
   if (!files.validId && !files.authorizationDocument) {
     const err = new Error('No file uploaded — attach a valid ID or authorization document');
     err.statusCode = 400;
@@ -88,20 +96,43 @@ exports.uploadDocuments = async (req, res) => {
   }
 
   if (files.validId) {
-    borrower.validIdPath = await uploadToStorage('valid_ids', 'validId', req, files.validId[0]);
+    borrower.validIdPath = await uploadToStorage('valid_ids', 'validId', ownerId, files.validId[0]);
   }
   if (files.authorizationDocument) {
     borrower.authorizationDocumentPath = await uploadToStorage(
       'authorization_documents',
       'authorizationDocument',
-      req,
+      ownerId,
       files.authorizationDocument[0]
     );
   }
   await borrower.save();
   await borrower.reload();
+  return borrower;
+}
 
-  res.json({ success: true, data: documentStatus(borrower) });
+// Each field is independent — a borrower can upload just the ID now and the
+// authorization document later (or both together); requiredness for actually
+// submitting a request is enforced client-side against this saved state.
+exports.uploadDocuments = async (req, res) => {
+  const borrower = await findOwnBorrower(req);
+  const saved = await saveUploadedDocuments(borrower, req.user.id, req.files || {});
+  res.json({ success: true, data: documentStatus(saved) });
+};
+
+// Staff-facing equivalent of the above, for a borrower who can't (or
+// hasn't) self-uploaded — chiefly a walk-in borrower a Property
+// Custodian/Admin Aide registers in person (server/controllers/borrow.
+// controller.js#create). Without this, review()'s document-verification
+// gate (missingDocuments) had no way to ever be satisfied for a walk-in
+// transaction: the borrower's own /me/documents route is restricted to
+// their own account, and a walk-in may not have — or use — one at all.
+// Same validation, same storage layout, same response shape as the
+// self-service upload; only who the target borrower is differs.
+exports.uploadDocumentsForBorrower = async (req, res) => {
+  const borrower = await findBorrowerById(req);
+  const saved = await saveUploadedDocuments(borrower, borrower.userId || `staff-${req.user.id}`, req.files || {});
+  res.json({ success: true, data: documentStatus(saved) });
 };
 
 // ---- Staff-facing document review (transaction drawer "View Document") ----

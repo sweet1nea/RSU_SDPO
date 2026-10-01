@@ -60,6 +60,34 @@ describe('middlewares/errorHandler.js', () => {
     expect(res.json.mock.calls[0][0]).toEqual({ success: false, message: 'Internal Server Error' });
   });
 
+  // 2026-10-01 system audit: a dropped DB connection on GET /api/qr/lookup
+  // surfaced its raw driver message, "Connection terminated unexpectedly",
+  // straight to whoever was scanning a QR code — confusing, and leaks
+  // internals. Any error WITHOUT an explicit statusCode is exactly this
+  // kind of unexpected failure (every deliberate business-rule error in
+  // this app sets one), so its message is replaced; the real message is
+  // still logged server-side via console.error, just not sent to the client.
+  test('replaces the message with a generic one for an unexpected error that has no statusCode, even if it has a real message', () => {
+    const err = new Error('Connection terminated unexpectedly');
+    const res = mockRes();
+
+    errorHandler(err, {}, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json.mock.calls[0][0]).toEqual({ success: false, message: 'Internal Server Error' });
+    expect(errorSpy).toHaveBeenCalled(); // still logged server-side
+  });
+
+  test('still uses the real message for a deliberate business-rule error (statusCode set)', () => {
+    const err = new Error('A category named "Basketball" already exists');
+    err.statusCode = 409;
+    const res = mockRes();
+
+    errorHandler(err, {}, res, jest.fn());
+
+    expect(res.json.mock.calls[0][0].message).toBe('A category named "Basketball" already exists');
+  });
+
   test('delegates to next(err) instead of writing a response when headers were already sent', () => {
     const err = new Error('boom');
     const res = mockRes();

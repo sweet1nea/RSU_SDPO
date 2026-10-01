@@ -24,7 +24,30 @@ const supabaseConfig = {
   dialectModule: pg,
   dialectOptions: {
     ssl: { require: true, rejectUnauthorized: false }
-  }
+  },
+  // 2026-10-01 system audit: public QR scans (GET /api/qr/lookup/:itemCode)
+  // intermittently 500'd with raw-driver "Connection terminated
+  // unexpectedly". Sequelize's default pool (max:5, idle:10000ms) is sized
+  // for a long-lived server process with one steady pool — wrong for a
+  // Vercel serverless function, where a cold-started instance can open up
+  // to 5 connections it then holds idle for 10s, and concurrent cold starts
+  // can exhaust Supabase's direct-connection limit. A small pool that's
+  // quick to let go of idle connections leaves headroom for other
+  // concurrently-running function instances sharing the same DB.
+  //
+  // NOTE: this is the code-side half of the fix. The other half lives in
+  // Vercel's env config — DATABASE_URL should point at Supabase's pooled
+  // "Transaction" connection string (port 6543, pgbouncer), not the direct
+  // connection (port 5432); worth checking there too if 500s like this
+  // keep happening after this change.
+  pool: { max: 2, min: 0, idle: 5000, acquire: 20000, evict: 5000 },
+  // Transparently retries a query once on exactly this class of transient
+  // connection drop instead of surfacing it to whoever happened to be
+  // scanning a QR code at that moment. Sequelize's own default retry list
+  // already covers ConnectionError/TimeoutError; this adds the specific
+  // "Connection terminated unexpectedly" message `pg` throws when the
+  // server (or Supabase's pooler) drops an idle/cold connection.
+  retry: { max: 2, match: [/Connection terminated unexpectedly/i, /ConnectionError/, /ETIMEDOUT/, /ECONNRESET/] }
 };
 
 module.exports = {

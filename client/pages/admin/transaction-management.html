@@ -164,37 +164,68 @@
     function documentsSection(t){
       // Borrower name/label go through data-* attributes (not an inline JS
       // string) so a name containing a quote can never break out of it.
-      const row=(type,label)=>`<div class="equipment-row" id="docRow-${type}"><div class="grow"><b id="docLabel-${type}">${label}</b><span class="sub" id="docStatus-${type}">Checking…</span></div><button class="scan" id="docBtn-${type}" data-doc-type="${type}" data-doc-label="${esc(label+' — '+t.name)}">View Document</button></div>`;
+      const row=(type,label)=>`<div class="equipment-row" id="docRow-${type}"><div class="grow"><b id="docLabel-${type}">${label}</b><span class="sub" id="docStatus-${type}">Checking…</span></div><input type="file" id="docFile-${type}" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx" style="display:none"><button class="scan" id="docBtn-${type}" data-doc-type="${type}" data-doc-label="${esc(label+' — '+t.name)}">View Document</button></div>`;
       const verified=t.documentsVerified
         ?`<div class="ack">✓ Documents verified${t.documentsVerifiedBy?' by '+esc(t.documentsVerifiedBy):''}${t.timestamps&&t.timestamps.documentsVerified?' on '+esc(formatPHDateTime(t.timestamps.documentsVerified)):''}.</div>`
         :['Pending','Acknowledged'].includes(t.status)?'<div class="damage-box show" id="docReviewNote">Review each submitted document, then use “Verify Documents &amp; Forward” to send this request to the Director.</div>':'';
       return section('Submitted Documents',verified+row('valid-id','Valid ID')+row('authorization-document','Authorization Document'));
     }
     function loadDocumentStatus(t){
-      document.querySelectorAll('#overview .scan[data-doc-type]').forEach(btn=>{
-        btn.onclick=()=>viewDocument(t.borrowerId,btn.dataset.docType,btn.dataset.docLabel);
-      });
       if(!t.borrowerId)return;
       apiFetch(`/api/borrowers/${t.borrowerId}/documents`).then(status=>{
         const authLabel=document.getElementById('docLabel-authorization-document');
         if(authLabel&&status.authorizationDocumentLabel)authLabel.textContent=status.authorizationDocumentLabel;
-        updateDocRow('valid-id',status.validIdUploaded,status.validIdRequired);
-        updateDocRow('authorization-document',status.authorizationDocumentUploaded,true);
+        updateDocRow(t.borrowerId,'valid-id',status.validIdUploaded,status.validIdRequired,t.name);
+        updateDocRow(t.borrowerId,'authorization-document',status.authorizationDocumentUploaded,true,t.name);
         const verifyBtn=document.getElementById('verifyDocsBtn');
-        if(verifyBtn&&status.missing&&status.missing.length){
-          verifyBtn.disabled=true;verifyBtn.title='Missing: '+status.missing.join(', ');
+        if(verifyBtn){
+          const missing=status.missing&&status.missing.length;
+          verifyBtn.disabled=!!missing;
+          verifyBtn.title=missing?'Missing: '+status.missing.join(', '):'';
           const note=document.getElementById('docReviewNote');
-          if(note)note.textContent='Missing required document(s): '+status.missing.join(', ')+'. Return the request for correction.';
+          if(note)note.textContent=missing?'Missing required document(s): '+status.missing.join(', ')+'. Upload them below, or return the request for correction.':'Review each submitted document, then use “Verify Documents & Forward” to send this request to the Director.';
         }
       }).catch(e=>{
         ['valid-id','authorization-document'].forEach(type=>{const el=document.getElementById('docStatus-'+type);if(el)el.textContent='Could not check: '+e.message;});
       });
     }
-    function updateDocRow(type,uploaded,required){
-      const btn=document.getElementById('docBtn-'+type),statusEl=document.getElementById('docStatus-'+type);
+    // Not-yet-submitted documents get an Upload control here instead of a
+    // dead disabled button — chiefly for a walk-in borrower a staff member
+    // registered in person, who may never log in to use the self-service
+    // /me/documents upload. Lets Admin/Director/Staff attach the ID/
+    // authorization document (e.g. a photo taken at the counter) right from
+    // this review drawer, satisfying the same requirement the Director-
+    // approval step (review()) checks before a request can move forward.
+    function updateDocRow(borrowerId,type,uploaded,required,borrowerName){
+      const btn=document.getElementById('docBtn-'+type),statusEl=document.getElementById('docStatus-'+type),fileInput=document.getElementById('docFile-'+type);
       if(!btn||!statusEl)return;
-      if(uploaded){statusEl.textContent='Submitted'+(required?'':' (optional for this borrower type)');}
-      else{statusEl.textContent=required?'Not submitted — required':'Not required for this borrower type';btn.disabled=true;btn.style.opacity=.5;btn.style.cursor='not-allowed';btn.onclick=null;}
+      if(uploaded){
+        statusEl.textContent='Submitted'+(required?'':' (optional for this borrower type)');
+        btn.textContent='View Document';btn.disabled=false;btn.style.opacity='';btn.style.cursor='';
+        btn.onclick=()=>viewDocument(borrowerId,type,btn.dataset.docLabel);
+      }else if(!required){
+        statusEl.textContent='Not required for this borrower type';
+        btn.disabled=true;btn.style.opacity=.5;btn.style.cursor='not-allowed';btn.onclick=null;
+      }else{
+        statusEl.textContent='Not submitted — required';
+        btn.textContent='Upload';btn.disabled=false;btn.style.opacity='';btn.style.cursor='';
+        btn.onclick=()=>fileInput.click();
+        if(fileInput)fileInput.onchange=()=>{if(fileInput.files&&fileInput.files[0])uploadDocument(borrowerId,type,fileInput.files[0],borrowerName)};
+      }
+    }
+    async function uploadDocument(borrowerId,type,file,borrowerName){
+      const statusEl=document.getElementById('docStatus-'+type),btn=document.getElementById('docBtn-'+type);
+      const field=type==='valid-id'?'validId':'authorizationDocument';
+      const prevText=statusEl.textContent;statusEl.textContent='Uploading…';if(btn)btn.disabled=true;
+      try{
+        const form=new FormData();form.append(field,file);
+        await apiFetch(`/api/borrowers/${borrowerId}/documents`,{method:'POST',body:form});
+        toast((borrowerName||'Document')+' — document uploaded');
+        if(current)loadDocumentStatus(current);
+      }catch(e){
+        statusEl.textContent=prevText;if(btn)btn.disabled=false;
+        toast('Upload failed: '+e.message);
+      }
     }
     async function viewDocument(borrowerId,type,label){
       const overlay=document.getElementById('docViewerOverlay'),body=document.getElementById('docViewerBody'),status=document.getElementById('docViewerStatus');

@@ -8,9 +8,18 @@ module.exports = (err, req, res, next) => {
     return next(err);
   }
   const status = err.statusCode || 500;
+  // Every deliberate business-rule error in this app sets err.statusCode
+  // (400/401/403/404/409/...) with a message written for the end user to
+  // read. An error that reaches here WITHOUT one is unexpected — a bug, a
+  // dependency failure, a dropped DB connection — and its message is
+  // whatever that layer happens to say, e.g. the raw driver message
+  // "Connection terminated unexpectedly" that used to reach a QR-scanning
+  // borrower verbatim (2026-10-01 system audit). The real message is still
+  // logged above via console.error; only the response is generic.
+  const message = err.statusCode ? err.message : 'Internal Server Error';
   res.status(status).json({
     success: false,
-    message: err.message || 'Internal Server Error',
+    message,
     // Only ever set by authMiddleware.js right now (AUTH_EXPIRED) — purely
     // additive, existing consumers that only destructure {success,message,
     // data} are unaffected. Lets the client tell a real expired/missing

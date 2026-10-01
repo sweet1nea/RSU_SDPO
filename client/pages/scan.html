@@ -80,9 +80,18 @@ function showNotFound(){
   $('#footNote').textContent='If this label is genuine, the item may not be registered in the system yet.';
 }
 
+// 2026-10-01 system audit: this copy used to say "Make sure you're on the
+// same network as the RSU-SDPO server" — leftover from when the system
+// assumed a LAN-hosted server. It's been on Vercel/Supabase (a public
+// internet deployment) since the move; "same network" doesn't apply and
+// only confuses someone scanning a label away from the SDPO office. A
+// dropped/cold DB connection (the actual, now-rarer cause — see
+// server/config/database.js) is usually fixed by simply trying again, so
+// this now offers a direct retry instead of generic troubleshooting advice.
 function showError(message){
-  $('#card').innerHTML=`<div class="notfound"><div class="icon">⚠️</div><h1>Couldn't reach the server</h1><p style="color:#7286a3">${esc(message)}</p></div>`;
-  $('#footNote').textContent="Make sure you're on the same network as the RSU-SDPO server, then try scanning again.";
+  $('#card').innerHTML=`<div class="notfound"><div class="icon">⚠️</div><h1>Couldn't reach the server</h1><p style="color:#7286a3">${esc(message)}</p><button id="retryBtn" style="margin-top:14px;background:var(--blue);color:#fff;border:0;border-radius:8px;padding:10px 20px;font:inherit;font-weight:700;cursor:pointer">Try Again</button></div>`;
+  $('#footNote').textContent='This usually resolves itself — if it keeps happening, let SDPO staff know.';
+  $('#retryBtn').onclick=render;
 }
 
 async function render(){

@@ -206,14 +206,29 @@ exports.update = async (req, res) => {
             transaction: t
           });
           const usedIds = new Set(used.map((d) => d.itemId));
-          const removable = items
-            .filter((i) => i.availabilityStatus === 'Available' && !usedIds.has(i.id))
+          // Available, never-borrowed units are only safe to actually
+          // delete when they ALSO have no QR label on them yet. A unit
+          // that's already stickered (PrintCo) or laser-engraved
+          // (engravingStatus 'Engraved'/'Tagged') represents real,
+          // already-spent physical labeling work — deleting its row would
+          // silently orphan that label, so a later scan of the physical
+          // sticker/engraving resolves to nothing (2026-10-01 system
+          // audit). Those units are excluded from auto-removal entirely;
+          // retiring one is a deliberate staff decision (delete the
+          // specific unit from the equipment's unit list), not something
+          // a quantity-number edit should do on its own.
+          const eligible = items.filter((i) => i.availabilityStatus === 'Available' && !usedIds.has(i.id));
+          const removable = eligible
+            .filter((i) => i.engravingStatus === 'Not Engraved')
             .sort((a, b) => b.id - a.id)
             .slice(0, unitsToRemove);
           if (removable.length < unitsToRemove) {
-            const err = new Error(
-              `Total quantity can only be lowered to ${items.length - removable.length} — the other units are borrowed, reserved, or have transaction history.`
-            );
+            const labeledCount = eligible.length - eligible.filter((i) => i.engravingStatus === 'Not Engraved').length;
+            const reason =
+              labeledCount > 0
+                ? `${labeledCount} of the remaining unit(s) already have a QR sticker or engraving and were kept — retire those from the unit list directly if they're no longer needed`
+                : 'the other units are borrowed, reserved, or have transaction history';
+            const err = new Error(`Total quantity can only be lowered to ${items.length - removable.length} — ${reason}.`);
             err.statusCode = 409;
             throw err;
           }

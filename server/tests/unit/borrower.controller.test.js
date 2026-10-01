@@ -5,6 +5,13 @@
 // listing, self-service document upload (Supabase Storage), and the
 // staff-facing document review/download endpoints.
 
+// 2026-10-01: added POST /api/borrowers/:id/documents
+// (uploadDocumentsForBorrower) — staff uploading a walk-in borrower's
+// documents on their behalf, so review()'s document-verification gate
+// (server/controllers/borrow.controller.js) isn't a permanent dead end for
+// a transaction created via the staff walk-in endpoint. See
+// claude/RSU_SDPO_System_Audit_2026-10-01.md.
+
 jest.mock('../../models', () => ({
   Borrower: { findAll: jest.fn(), findOne: jest.fn(), findByPk: jest.fn() },
   User: {}
@@ -164,6 +171,87 @@ describe('POST /api/borrowers/me/documents (uploadDocuments)', () => {
 
     await expect(
       ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile()] } }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 502, message: expect.stringContaining('bucket not found') });
+    expect(borrower.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/borrowers/:id/documents (uploadDocumentsForBorrower)', () => {
+  function makeFile(name = 'id.jpg') {
+    return { originalname: name, buffer: Buffer.from('fake-bytes'), mimetype: 'image/jpeg' };
+  }
+
+  test('rejects with 404 when the target borrower does not exist', async () => {
+    Borrower.findByPk.mockResolvedValue(null);
+
+    await expect(
+      ctrl.uploadDocumentsForBorrower({ user: { id: 5 }, params: { id: 999 }, files: { validId: [makeFile()] } }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('rejects with 400 when no files are attached at all', async () => {
+    Borrower.findByPk.mockResolvedValue({ id: 1, userId: 9, save: jest.fn(), reload: jest.fn() });
+
+    await expect(
+      ctrl.uploadDocumentsForBorrower({ user: { id: 5 }, params: { id: 1 }, files: {} }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('uploads on behalf of the borrower, keying the storage path by the BORROWER\'s userId, not the uploading staff member\'s', async () => {
+    const borrower = { id: 1, userId: 9, validIdPath: null, authorizationDocumentPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+    Borrower.findByPk.mockResolvedValue(borrower);
+    const client = makeStorageClient();
+    getClient.mockReturnValue(client);
+
+    // req.user.id (5) is the STAFF member uploading; borrower.userId (9) is
+    // the walk-in borrower's own account. The saved key must use 9, so a
+    // staff member reviewing later sees the document filed under the right
+    // borrower regardless of who at the counter actually uploaded it.
+    await ctrl.uploadDocumentsForBorrower(
+      { user: { id: 5 }, params: { id: 1 }, files: { validId: [makeFile('front.jpg')] } },
+      mockRes()
+    );
+
+    expect(borrower.validIdPath).toMatch(/^valid_ids\/borrower-9-validId-\d+\.jpg$/);
+    expect(borrower.save).toHaveBeenCalledTimes(1);
+  });
+
+  test('falls back to a staff-tagged key when the borrower has no linked user account', async () => {
+    const borrower = { id: 1, userId: null, validIdPath: null, authorizationDocumentPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+    Borrower.findByPk.mockResolvedValue(borrower);
+    getClient.mockReturnValue(makeStorageClient());
+
+    await ctrl.uploadDocumentsForBorrower(
+      { user: { id: 5 }, params: { id: 1 }, files: { validId: [makeFile()] } },
+      mockRes()
+    );
+
+    expect(borrower.validIdPath).toMatch(/^valid_ids\/borrower-staff-5-validId-\d+\.jpg$/);
+  });
+
+  test('uploads both documents in one call and returns the same documentStatus shape', async () => {
+    const borrower = { id: 1, userId: 9, validIdPath: null, authorizationDocumentPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+    Borrower.findByPk.mockResolvedValue(borrower);
+    getClient.mockReturnValue(makeStorageClient());
+
+    const res = mockRes();
+    await ctrl.uploadDocumentsForBorrower(
+      { user: { id: 5 }, params: { id: 1 }, files: { validId: [makeFile('id.jpg')], authorizationDocument: [makeFile('auth.pdf')] } },
+      res
+    );
+
+    expect(borrower.validIdPath).toMatch(/^valid_ids\//);
+    expect(borrower.authorizationDocumentPath).toMatch(/^authorization_documents\//);
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: expect.objectContaining({ validIdUploaded: true, authorizationDocumentUploaded: true }) });
+  });
+
+  test('propagates a 502 when Supabase Storage returns an upload error', async () => {
+    const borrower = { id: 1, userId: 9, save: jest.fn(), reload: jest.fn() };
+    Borrower.findByPk.mockResolvedValue(borrower);
+    getClient.mockReturnValue(makeStorageClient({ uploadError: { message: 'bucket not found' } }));
+
+    await expect(
+      ctrl.uploadDocumentsForBorrower({ user: { id: 5 }, params: { id: 1 }, files: { validId: [makeFile()] } }, mockRes())
     ).rejects.toMatchObject({ statusCode: 502, message: expect.stringContaining('bucket not found') });
     expect(borrower.save).not.toHaveBeenCalled();
   });
