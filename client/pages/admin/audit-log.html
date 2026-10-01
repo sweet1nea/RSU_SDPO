@@ -18,13 +18,39 @@
     .status-arrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
     .status-arrow .old{color:var(--muted)}
     .status-arrow .new{color:var(--green)}
-    @media(max-width:650px){.content{padding:12px}}
+    .txn-link{background:none;border:0;color:var(--green);font-weight:700;cursor:pointer;padding:0;font:inherit;text-decoration:underline;text-underline-offset:2px}
+    .txn-link:hover{color:var(--deep)}
+    .txn-link:disabled{color:var(--ink);cursor:default;text-decoration:none;font-weight:600}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:70;display:none;align-items:center;justify-content:center;padding:20px}
+    .overlay.show{display:flex}
+    .ov-box{background:var(--page);border-radius:14px;width:min(480px,100%);max-height:85vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    .ov-head{display:flex;justify-content:space-between;align-items:center;padding:15px 19px;border-bottom:1px solid var(--line)}
+    .ov-head b{font-size:13px}
+    .ov-head button{border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted)}
+    .ov-body{padding:16px 19px}
+    .ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+    .ov-grid .full{grid-column:1/-1}
+    .ov-field label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+    .ov-field div{font-size:13px;color:var(--ink)}
+    .ov-items{margin-top:14px;border-top:1px solid var(--softline);padding-top:12px}
+    .ov-items b{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.3px}
+    .ov-item-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:6px 0;border-bottom:1px solid var(--softline)}
+    .ov-item-row:last-child{border-bottom:0}
+    .ov-status{margin-top:2px}
+    .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-weight:700;font-size:11px;background:var(--softline);color:var(--ink)}
+    @media(max-width:650px){.content{padding:12px}.ov-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <div id="app-root" data-page="audit-log" data-title="Audit Log" data-subtitle="History of every transaction status change across the system">
     <section class="page-head"><p>Most recent 200 status changes, newest first.</p></section>
-    <section class="records-card" aria-label="Audit log"><table class="records-table"><thead><tr><th>Date / Time</th><th>Transaction</th><th>Changed By</th><th>Status Change</th><th>Remarks</th></tr></thead><tbody id="records-body"></tbody></table></section>
+    <section class="records-card" aria-label="Audit log"><table class="records-table"><thead><tr><th>Transaction No.</th><th>Date / Time</th><th>Status Change</th><th>Remarks</th></tr></thead><tbody id="records-body"></tbody></table></section>
+  </div>
+  <div id="txnOverview" class="overlay" aria-hidden="true">
+    <div class="ov-box" role="dialog" aria-modal="true" aria-label="Transaction overview">
+      <div class="ov-head"><b id="ovTitle">Transaction</b><button onclick="closeTxnOverview()" aria-label="Close">×</button></div>
+      <div class="ov-body" id="ovBody"></div>
+    </div>
   </div>
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/app-shell.js"></script>
@@ -34,21 +60,63 @@
       const d=new Date(iso);
       return formatPHDate(d)+' · '+formatPHTime(d); // Philippine Time
     }
+    // Keyed by the transaction's raw numeric id (TransactionLog.transactionId
+    // / borrow.controller.js serialize()'s dbId) — lets a log row show the
+    // real Transaction No. (e.g. TN1-2026-0036) instead of a bare internal
+    // "#N", and backs the quick-overview dialog, without needing a new
+    // endpoint: GET /api/borrow is the same staff-only list transaction-
+    // management.html already uses.
+    let txnByDbId={};
     function row(r){
+      const t=txnByDbId[r.transactionId];
+      const txnCell=t
+        ?`<button type="button" class="txn-link" onclick="openTxnOverview(${r.transactionId})">${esc(t.id)}</button>`
+        :`<button type="button" class="txn-link" disabled title="Transaction #${r.transactionId} — details unavailable">#${r.transactionId}</button>`;
       return `<tr>
+        <td>${txnCell}</td>
         <td>${fmtWhen(r.changeDatetime)}</td>
-        <td>Transaction #${r.transactionId}</td>
-        <td>${esc(r.changedBy)}</td>
         <td><span class="status-arrow"><span class="old">${esc(r.oldStatus)}</span>→<span class="new">${esc(r.newStatus)}</span></span></td>
         <td class="subline">${r.remarks?esc(r.remarks):'—'}</td>
       </tr>`;
     }
-    apiFetch('/api/audit-logs').then(rows=>{
+    function openTxnOverview(dbId){
+      const t=txnByDbId[dbId];
+      if(!t)return;
+      document.getElementById('ovTitle').textContent=t.id;
+      document.getElementById('ovBody').innerHTML=`
+        <div class="ov-grid">
+          <div class="ov-field"><label>Borrower</label><div>${esc(t.name)}</div></div>
+          <div class="ov-field"><label>Borrower Type</label><div>${esc(t.type)}</div></div>
+          <div class="ov-field"><label>College / Unit</label><div>${esc(t.college)}</div></div>
+          <div class="ov-field"><label>Status</label><div class="ov-status"><span class="badge">${esc(t.status)}</span></div></div>
+          <div class="ov-field"><label>Request Date</label><div>${esc(t.date)} ${esc(t.time)}</div></div>
+          <div class="ov-field"><label>Expected Return</label><div>${esc(t.due)} ${esc(t.dueTime||'')}</div></div>
+          <div class="ov-field"><label>Reviewed By</label><div>${esc(t.review)}</div></div>
+          <div class="ov-field"><label>Approved By</label><div>${esc(t.approve)}</div></div>
+          <div class="ov-field full"><label>Purpose</label><div>${esc(t.purpose)}</div></div>
+        </div>
+        <div class="ov-items">
+          <b>Equipment (${t.items.length})</b>
+          ${t.items.map(it=>`<div class="ov-item-row"><span>${esc(it.name)}</span><span class="subline">${esc(it.equipmentCode)} · ${esc(it.code)}</span></div>`).join('')||'<div class="ov-item-row"><span class="subline">No items on record</span></div>'}
+        </div>`;
+      document.getElementById('txnOverview').classList.add('show');
+      document.getElementById('txnOverview').setAttribute('aria-hidden','false');
+    }
+    function closeTxnOverview(){
+      document.getElementById('txnOverview').classList.remove('show');
+      document.getElementById('txnOverview').setAttribute('aria-hidden','true');
+    }
+    document.getElementById('txnOverview').addEventListener('click',e=>{if(e.target.id==='txnOverview')closeTxnOverview()});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTxnOverview()});
+
+    Promise.all([apiFetch('/api/audit-logs'),apiFetch('/api/borrow').catch(()=>[])]).then(([rows,txns])=>{
+      txnByDbId={};
+      (txns||[]).forEach(t=>{txnByDbId[t.dbId]=t});
       document.getElementById('records-body').innerHTML=rows.length
         ?rows.map(row).join('')
-        :'<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">No status changes recorded yet.</td></tr>';
+        :'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">No status changes recorded yet.</td></tr>';
     }).catch(err=>{
-      document.getElementById('records-body').innerHTML=`<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Could not load audit log: ${esc(err.message)}</td></tr>`;
+      document.getElementById('records-body').innerHTML=`<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">Could not load audit log: ${esc(err.message)}</td></tr>`;
     });
   </script>
 </body>

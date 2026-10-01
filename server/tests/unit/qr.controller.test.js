@@ -12,12 +12,12 @@ jest.mock('../../models', () => ({
   Equipment: { increment: jest.fn(), decrement: jest.fn() },
   Category: {},
   Borrower: {},
-  TransactionDetail: {},
+  TransactionDetail: { count: jest.fn() },
   Transaction: {},
-  sequelize: { transaction: jest.fn((cb) => cb({})) }
+  sequelize: { transaction: jest.fn((cb) => cb({ LOCK: { UPDATE: 'UPDATE' } })) }
 }));
 
-const { Item, Equipment, sequelize } = require('../../models');
+const { Item, Equipment, TransactionDetail, sequelize } = require('../../models');
 const ctrl = require('../../controllers/qr.controller');
 
 function mockRes() {
@@ -154,3 +154,58 @@ describe('GET /api/qr/lookup/:itemCode (lookup)', () => {
 // removed 2026-09-14 along with the Maintenance/Decommissioned Item
 // statuses themselves, per the SDPO's own revised requirements — see
 // migration 022_remove_item_maintenance_status.
+
+// DELETE /api/qr/items/:id (deleteItem) — added 2026-10-02 so staff can
+// retire a single generated QR code/unit directly from QR Management,
+// instead of only ever being able to lower an equipment's total quantity
+// (which deliberately skips already-labeled units — see
+// equipment.controller.js#update).
+describe('DELETE /api/qr/items/:id (deleteItem)', () => {
+  function mockItem(overrides) {
+    return {
+      id: 7,
+      equipmentId: 3,
+      availabilityStatus: 'Available',
+      destroy: jest.fn().mockResolvedValue(),
+      ...overrides
+    };
+  }
+
+  test('deletes an Available, never-used unit and decrements the equipment counts', async () => {
+    const item = mockItem();
+    Item.findByPk.mockResolvedValueOnce(item);
+    TransactionDetail.count.mockResolvedValueOnce(0);
+
+    const res = mockRes();
+    await ctrl.deleteItem({ params: { id: '7' } }, res);
+
+    expect(item.destroy).toHaveBeenCalled();
+    expect(Equipment.decrement).toHaveBeenCalledWith(
+      { totalQuantity: 1, availableQuantity: 1 },
+      expect.objectContaining({ where: { id: 3 } })
+    );
+    expect(res.json.mock.calls[0][0]).toEqual({ success: true, data: { equipmentId: 3 } });
+  });
+
+  test('rejects with 404 when the item does not exist', async () => {
+    Item.findByPk.mockResolvedValueOnce(null);
+    await expect(ctrl.deleteItem({ params: { id: '999' } }, mockRes())).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('rejects with 409 when the unit is not Available (e.g. Borrowed)', async () => {
+    const item = mockItem({ availabilityStatus: 'Borrowed' });
+    Item.findByPk.mockResolvedValueOnce(item);
+
+    await expect(ctrl.deleteItem({ params: { id: '7' } }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
+    expect(item.destroy).not.toHaveBeenCalled();
+  });
+
+  test('rejects with 409 when the unit has transaction history', async () => {
+    const item = mockItem();
+    Item.findByPk.mockResolvedValueOnce(item);
+    TransactionDetail.count.mockResolvedValueOnce(2);
+
+    await expect(ctrl.deleteItem({ params: { id: '7' } }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
+    expect(item.destroy).not.toHaveBeenCalled();
+  });
+});

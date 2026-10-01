@@ -36,18 +36,48 @@
     /* New Transaction modal */
     .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:65;display:none;align-items:center;justify-content:center;padding:20px}
     .modal-overlay.show{display:flex}
-    .modal-box{background:var(--page);border-radius:14px;width:min(480px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    .modal-box{background:var(--page);border-radius:14px;width:min(620px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
     .modal-head{display:flex;justify-content:space-between;align-items:center;padding:15px 19px;border-bottom:1px solid var(--line)}
     .modal-head b{font-size:13px}
     .modal-body{padding:16px 19px}
     .modal-body label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:12px 0 5px}
     .modal-body label:first-child{margin-top:0}
     .modal-body select,.modal-body input,.modal-body textarea{width:100%;font-size:12px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-family:inherit}
-    .item-list{max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:6px}
-    .item-check{display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:12px}
-    .item-check .sub{margin-left:auto;color:var(--muted);font-size:10px}
     .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 19px;border-top:1px solid var(--line)}
     .form-error{color:#dc2626;font-size:11px;min-height:14px;margin-top:8px}
+    /* Equipment-request-wizard-style cards, reused here so the walk-in form
+       looks and behaves like the borrower's own self-service request (same
+       class names as client/pages/user/equipment-showroom-figma.html, by
+       request — one visual language for "requesting equipment" everywhere). */
+    .wizard-card{background:var(--canvas);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:14px}
+    .wizard-card__head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--softline);padding-bottom:10px;margin-bottom:12px}
+    .wizard-card__head h3{margin:0;font-size:12px;color:var(--ink)}
+    .wizard-field{display:block}
+    .wizard-field+.wizard-field{margin-top:12px}
+    .wizard-field label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:none;letter-spacing:normal}
+    .wizard-field input[type=text],.wizard-field input[type=date],.wizard-field input[type=time],.wizard-field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px Inter,sans-serif;color:var(--ink);background:var(--page);box-sizing:border-box}
+    .wizard-field input[readonly]{background:var(--softline);color:var(--muted)}
+    .wizard-field textarea{resize:vertical;min-height:56px;font-family:inherit}
+    .wizard-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .equip-row{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;gap:8px;align-items:flex-start}
+    .equip-row+.equip-row{margin-top:8px}
+    .equip-row__main{flex:1;min-width:0}
+    .equip-row__main select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:12px Inter,sans-serif;background:var(--page);color:var(--ink)}
+    .equip-row__meta{display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap}
+    .equip-badge{background:#fef3c7;color:var(--amber);font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap}
+    .equip-badge--available{background:#ecfdf5;color:#00865d}
+    .equip-badge--limited{background:#fef3c7;color:var(--amber)}
+    .equip-badge--low{background:#fef2f2;color:#c10007}
+    .equip-cap-note{font-size:10px;font-weight:500;color:var(--muted)}
+    .equip-min-stock-note{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#c10007;margin-top:5px}
+    .equip-row__stepper{display:flex;align-items:center;gap:5px;flex-shrink:0;padding-top:1px}
+    .equip-row__stepper button{width:25px;height:25px;border:1px solid var(--line);border-radius:7px;background:var(--page);font-size:13px;line-height:1;cursor:pointer;color:var(--ink)}
+    .equip-row__stepper button:disabled{opacity:.4;cursor:not-allowed}
+    .equip-row__stepper span{display:inline-block;width:20px;text-align:center;font-size:12px;font-weight:600}
+    .equip-row__remove{width:25px;height:25px;border:1px solid #fecaca;background:#fff5f5;border-radius:7px;cursor:pointer;flex-shrink:0;display:grid;place-items:center}
+    .equip-add{border:0;background:none;color:var(--deep);font-size:12px;font-weight:600;cursor:pointer;padding:10px 0 0;display:flex;align-items:center;gap:5px}
+    .equip-empty{color:var(--muted);font-size:11px;margin:0}
+    @media(max-width:520px){.wizard-grid-2{grid-template-columns:1fr}.equip-row{flex-wrap:wrap}}
     @media(max-width:820px){.content{padding:18px 15px}.heading-row{display:block}.counts{margin-top:14px}.drawer{width:100%}}
     @media(max-width:520px){.filters{padding:10px}.search{flex-basis:100%}.drawer-actions{flex-wrap:wrap}.info-grid,.form-grid{grid-template-columns:1fr}.tabs{gap:9px;padding-left:10px}.tab{font-size:10px}}
   </style>
@@ -80,12 +110,27 @@
       <div class="modal-body">
         <label>Borrower</label>
         <select id="newTxnBorrower"><option value="">Loading…</option></select>
-        <label>Equipment Items (Available only)</label>
-        <div class="item-list" id="newTxnItems"><p class="sub">Loading…</p></div>
-        <label>Purpose</label>
-        <textarea id="newTxnPurpose" rows="2" placeholder="e.g. Intramurals basketball match"></textarea>
-        <label>Expected Return (Philippine Time)</label>
-        <input id="newTxnDue" type="datetime-local">
+        <div class="wizard-card" id="newTxnBorrowerDetails" hidden>
+          <div class="wizard-card__head"><h3>Borrower Details</h3></div>
+          <div class="wizard-field"><label>Borrower's Name</label><input type="text" id="newTxnBorrowerName" readonly></div>
+          <div class="wizard-field wizard-grid-2">
+            <div><label>Borrower Type</label><input type="text" id="newTxnBorrowerType" readonly></div>
+            <div><label>College / Unit</label><input type="text" id="newTxnBorrowerCollege" readonly></div>
+          </div>
+        </div>
+        <div class="wizard-card">
+          <div class="wizard-card__head"><h3>Equipment Request</h3></div>
+          <div id="newTxnEquipmentList"></div>
+          <button type="button" class="equip-add" id="newTxnAddEquipmentBtn">+ Add Equipment</button>
+        </div>
+        <div class="wizard-card">
+          <div class="wizard-card__head"><h3>Activity Information</h3></div>
+          <div class="wizard-field"><label>Purpose / Use</label><textarea id="newTxnPurpose" rows="2" placeholder="e.g. Intramurals basketball match"></textarea></div>
+          <div class="wizard-field wizard-grid-2">
+            <div><label>Expected Return Date</label><input type="date" id="newTxnDueDate"></div>
+            <div><label>Expected Return Time</label><input type="time" id="newTxnDueTime"></div>
+          </div>
+        </div>
         <p class="form-error" id="newTxnError"></p>
       </div>
       <div class="modal-foot"><button class="btn" onclick="closeNewTxnModal()">Cancel</button><button class="btn green" onclick="submitNewTxn()">Create Transaction</button></div>
@@ -93,6 +138,7 @@
   </div>
   <script src="../../js/shared/app-shell.js"></script>
   <script src="../../js/shared/api.js"></script>
+  <script src="../../js/shared/equipment-ui.js"></script>
   <script src="../../js/vendor/jsQR.js"></script>
   <script>
     // This page needs a logged-in staff/admin/director user (approve/release/return
@@ -198,14 +244,21 @@
     // approval step (review()) checks before a request can move forward.
     function updateDocRow(borrowerId,type,uploaded,required,borrowerName){
       const btn=document.getElementById('docBtn-'+type),statusEl=document.getElementById('docStatus-'+type),fileInput=document.getElementById('docFile-'+type);
+      const row=document.getElementById('docRow-'+type);
       if(!btn||!statusEl)return;
+      // A document type that isn't required for this borrower's type (e.g.
+      // Valid ID for a Student) and was never submitted anyway has nothing
+      // to show — hide the row instead of a disabled "Not required" line,
+      // so the card only lists what's actually required or on file.
+      if(!required&&!uploaded){
+        if(row)row.style.display='none';
+        return;
+      }
+      if(row)row.style.display='';
       if(uploaded){
         statusEl.textContent='Submitted'+(required?'':' (optional for this borrower type)');
         btn.textContent='View Document';btn.disabled=false;btn.style.opacity='';btn.style.cursor='';
         btn.onclick=()=>viewDocument(borrowerId,type,btn.dataset.docLabel);
-      }else if(!required){
-        statusEl.textContent='Not required for this borrower type';
-        btn.disabled=true;btn.style.opacity=.5;btn.style.cursor='not-allowed';btn.onclick=null;
       }else{
         statusEl.textContent='Not submitted — required';
         btn.textContent='Upload';btn.disabled=false;btn.style.opacity='';btn.style.cursor='';
@@ -431,16 +484,96 @@
     }
 
     // --- New Transaction modal ---
+    // Reformatted to match the borrower's own self-service request wizard
+    // (equipment-showroom-figma.html): a Borrower Details card that fills
+    // in once a borrower is picked, an Equipment Request card with
+    // dropdown+qty rows instead of a flat checkbox list, and an Activity
+    // Information card with separate date/time inputs.
+    let newTxnBorrowers=[],newTxnProducts=[],newTxnEquipmentRows=[],newTxnRowSeq=0;
+    const newTxnProductById=id=>newTxnProducts.find(p=>p.id===id);
+
+    function newTxnEquipmentOptionsHtml(selectedId){
+      const opts=newTxnProducts.map(p=>{
+        const cap=EquipmentUI.maxBorrowableUnits(p.available,p.total);
+        const blocked=p.available>0&&cap===0;
+        const disabled=!p.available||blocked;
+        const suffix=blocked?' — below minimum stock':cap>0?` — max ${cap} per request`:'';
+        return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${p.available})${suffix}</option>`;
+      }).join('');
+      return `<option value="">Select equipment...</option>${opts}`;
+    }
+    function renderNewTxnEquipmentList(){
+      const list=document.getElementById('newTxnEquipmentList');
+      list.innerHTML=newTxnEquipmentRows.length?newTxnEquipmentRows.map(row=>{
+        const product=newTxnProductById(row.equipmentId);
+        const available=product?product.available:0;
+        const level=product?EquipmentUI.stockLevel(available):'available';
+        const cap=product?EquipmentUI.maxBorrowableUnits(available,product.total):0;
+        const minBlocked=product&&cap===0;
+        if(product&&row.quantity>cap&&cap>0)row.quantity=cap;
+        return `<div class="equip-row" data-row="${row.rowId}">
+          <div class="equip-row__main">
+            <select class="equip-row__select">${newTxnEquipmentOptionsHtml(row.equipmentId)}</select>
+            <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Max ${cap} per request</span>`:''}`:''}</div>
+            ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — choose a different item.</div>':''}
+          </div>
+          <div class="equip-row__stepper">
+            <button type="button" class="equip-row__dec" ${row.quantity<=1?'disabled':''}>−</button>
+            <span>${row.quantity}</span>
+            <button type="button" class="equip-row__inc" ${!product||cap<=0||row.quantity>=cap?'disabled':''}>+</button>
+          </div>
+          <button type="button" class="equip-row__remove" title="Remove equipment"><img src="../../assets/icons/icon-trash.svg" alt="" style="width:12px;height:12px"></button>
+        </div>`;
+      }).join(''):'<p class="equip-empty">No equipment added yet.</p>';
+    }
+    function newTxnAddEquipmentRow(equipmentId){
+      newTxnEquipmentRows.push({rowId:++newTxnRowSeq,equipmentId:equipmentId||null,quantity:1});
+      renderNewTxnEquipmentList();
+    }
+    document.getElementById('newTxnEquipmentList').addEventListener('click',e=>{
+      const rowEl=e.target.closest('.equip-row');
+      if(!rowEl)return;
+      const rowId=Number(rowEl.dataset.row);
+      const row=newTxnEquipmentRows.find(r=>r.rowId===rowId);
+      if(e.target.closest('.equip-row__remove')){newTxnEquipmentRows=newTxnEquipmentRows.filter(r=>r.rowId!==rowId);renderNewTxnEquipmentList();return;}
+      if(e.target.closest('.equip-row__inc')){const p=newTxnProductById(row.equipmentId);if(p&&row.quantity<EquipmentUI.maxBorrowableUnits(p.available,p.total))row.quantity++;renderNewTxnEquipmentList();return;}
+      if(e.target.closest('.equip-row__dec')){if(row.quantity>1)row.quantity--;renderNewTxnEquipmentList();}
+    });
+    document.getElementById('newTxnEquipmentList').addEventListener('change',e=>{
+      if(!e.target.classList.contains('equip-row__select'))return;
+      const rowId=Number(e.target.closest('.equip-row').dataset.row);
+      const row=newTxnEquipmentRows.find(r=>r.rowId===rowId);
+      row.equipmentId=Number(e.target.value)||null;
+      row.quantity=1;
+      renderNewTxnEquipmentList();
+    });
+    document.getElementById('newTxnAddEquipmentBtn').addEventListener('click',()=>newTxnAddEquipmentRow(null));
+    document.getElementById('newTxnBorrower').addEventListener('change',e=>{
+      const b=newTxnBorrowers.find(x=>x.id===Number(e.target.value));
+      const card=document.getElementById('newTxnBorrowerDetails');
+      if(!b){card.hidden=true;return}
+      document.getElementById('newTxnBorrowerName').value=`${b.firstName} ${b.lastName}`;
+      document.getElementById('newTxnBorrowerType').value=b.borrowerCategory||'';
+      document.getElementById('newTxnBorrowerCollege').value=b.collegeOrUnit||'';
+      card.hidden=false;
+    });
+
     async function openNewTxnModal(){
       document.getElementById('newTxnOverlay').classList.add('show');document.getElementById('newTxnOverlay').setAttribute('aria-hidden','false');
       document.getElementById('newTxnError').textContent='';
       document.getElementById('newTxnBorrower').innerHTML='<option value="">Loading…</option>';
-      document.getElementById('newTxnItems').innerHTML='<p class="sub">Loading…</p>';
+      document.getElementById('newTxnBorrowerDetails').hidden=true;
+      document.getElementById('newTxnPurpose').value='';
+      document.getElementById('newTxnDueDate').value='';
+      document.getElementById('newTxnDueTime').value='';
+      newTxnEquipmentRows=[];newTxnRowSeq=0;
+      renderNewTxnEquipmentList();
       try{
-        const [borrowers,items]=await Promise.all([apiFetch('/api/borrowers'),apiFetch('/api/qr/items')]);
-        const available=items.filter(i=>i.status==='Available');
+        const [borrowers,equipment]=await Promise.all([apiFetch('/api/borrowers'),apiFetch('/api/equipment')]);
+        newTxnBorrowers=borrowers;
+        newTxnProducts=equipment.map(e=>({id:e.id,name:e.equipmentName,available:e.availableQuantity,total:e.totalQuantity}));
         document.getElementById('newTxnBorrower').innerHTML='<option value="">Select borrower…</option>'+borrowers.map(b=>`<option value="${b.id}">${esc(b.firstName)} ${esc(b.lastName)} — ${esc(b.collegeOrUnit)}</option>`).join('');
-        document.getElementById('newTxnItems').innerHTML=available.length?available.map(i=>`<label class="item-check"><input type="checkbox" value="${i.id}"> ${esc(i.equipmentName)} <span class="sub">${esc(i.code)}</span></label>`).join(''):'<p class="sub">No available items right now.</p>';
+        newTxnAddEquipmentRow(null);
       }catch(e){
         document.getElementById('newTxnError').textContent=e.message;
       }
@@ -448,14 +581,34 @@
     function closeNewTxnModal(){document.getElementById('newTxnOverlay').classList.remove('show');document.getElementById('newTxnOverlay').setAttribute('aria-hidden','true')}
     async function submitNewTxn(){
       const borrowerId=Number(document.getElementById('newTxnBorrower').value);
-      const itemIds=[...document.querySelectorAll('#newTxnItems input:checked')].map(el=>Number(el.value));
       const purpose=document.getElementById('newTxnPurpose').value.trim();
-      const due=document.getElementById('newTxnDue').value;
+      const dueDate=document.getElementById('newTxnDueDate').value;
+      const dueTime=document.getElementById('newTxnDueTime').value;
       const errEl=document.getElementById('newTxnError');
+      errEl.textContent='';
       if(!borrowerId){errEl.textContent='Select a borrower.';return}
-      if(itemIds.length===0){errEl.textContent='Select at least one item.';return}
+      const rows=newTxnEquipmentRows.filter(r=>r.equipmentId);
+      if(rows.length===0){errEl.textContent='Add at least one equipment item.';return}
+      const due=dueDate?`${dueDate}T${dueTime||'00:00'}`:null;
       try{
-        await apiFetch('/api/borrow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({borrowerId,itemIds,purpose,expectedReturnDatetime:due||null})});
+        // The staff walk-in endpoint (POST /api/borrow) reserves specific
+        // physical units, not equipment+quantity like the self-service
+        // endpoint does — so each equipment+qty row here is resolved to
+        // real available unit IDs right before submitting, fetched fresh
+        // so a stale load-time snapshot can't reserve something someone
+        // else just took. The server still re-checks availability itself
+        // (row-locked, transactional) before committing.
+        const items=await apiFetch('/api/qr/items');
+        const itemIds=[];
+        for(const row of rows){
+          const avail=items.filter(i=>i.equipmentId===row.equipmentId&&i.status==='Available'&&!itemIds.includes(i.id));
+          if(avail.length<row.quantity){
+            errEl.textContent='Not enough available units for one of the selected equipment items — it may have just been reserved by someone else.';
+            return;
+          }
+          itemIds.push(...avail.slice(0,row.quantity).map(i=>i.id));
+        }
+        await apiFetch('/api/borrow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({borrowerId,itemIds,purpose,expectedReturnDatetime:due})});
         closeNewTxnModal();await loadTransactions();toast('Transaction created')
       }catch(e){errEl.textContent=e.message}
     }

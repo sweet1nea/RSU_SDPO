@@ -176,7 +176,7 @@ async function transition(txn, fromStatuses, toStatus, fields, t) {
 
 function txnCode(t) {
   const year = toPhtWallClock(t.requestDatetime || t.createdAt).getUTCFullYear();
-  return `TXN-${year}-${String(t.id).padStart(4, '0')}`;
+  return `TN1-${year}-${String(t.id).padStart(4, '0')}`;
 }
 
 // Most recent audit-trail entry reaching `newStatus` — shows *why* a request

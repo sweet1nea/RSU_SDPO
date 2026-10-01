@@ -9,6 +9,7 @@ const staffOnly = roleMiddleware(['Admin', 'Director', 'Staff']);
 
 router.get('/items', authMiddleware, staffOnly, catchAsync(ctrl.listItems));
 router.post('/generate', authMiddleware, staffOnly, catchAsync(ctrl.generate));
+router.delete('/items/:id', authMiddleware, staffOnly, catchAsync(ctrl.deleteItem));
 // Public: client/pages/scan.html depends on this staying unauthenticated for
 // the public equipment-lookup-by-QR flow.
 router.get('/lookup/:itemCode', catchAsync(ctrl.lookup));
