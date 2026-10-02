@@ -36,7 +36,7 @@
     /* New Transaction modal */
     .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:65;display:none;align-items:center;justify-content:center;padding:20px}
     .modal-overlay.show{display:flex}
-    .modal-box{background:var(--page);border-radius:14px;width:min(620px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    .modal-box{background:var(--page);border-radius:14px;width:min(760px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
     .modal-head{display:flex;justify-content:space-between;align-items:center;padding:15px 19px;border-bottom:1px solid var(--line)}
     .modal-head b{font-size:13px}
     .modal-body{padding:16px 19px}
@@ -45,6 +45,16 @@
     .modal-body select,.modal-body input,.modal-body textarea{width:100%;font-size:12px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-family:inherit}
     .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 19px;border-top:1px solid var(--line)}
     .form-error{color:#dc2626;font-size:11px;min-height:14px;margin-top:8px}
+    /* Read-only borrower summary, shown once a borrower is picked — plain
+       label/value pairs instead of disabled-looking input boxes, since
+       these were never editable here (they come from the borrower's own
+       account). Same pattern as equipment-showroom-figma.html, by request. */
+    .wizard-summary-field{display:block}
+    .wizard-summary-field+.wizard-summary-field{margin-top:12px}
+    .wizard-summary-field label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+    .wizard-summary-field div{font-size:13px;font-weight:600;color:var(--ink)}
+    .wizard-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .new-borrower-toggle{border:0;background:none;color:var(--deep);font-size:11px;font-weight:700;cursor:pointer;padding:8px 0 0;text-decoration:underline}
     /* Equipment-request-wizard-style cards, reused here so the walk-in form
        looks and behaves like the borrower's own self-service request (same
        class names as client/pages/user/equipment-showroom-figma.html, by
@@ -88,7 +98,7 @@
     <div class="filters"><input id="search" class="search" placeholder="Search by name, ID, college, purpose..." aria-label="Search transactions"><select id="statusFilter"><option value="">All Statuses</option><option>Acknowledged</option><option>For Approval</option><option>Approved</option><option>Released</option><option>Overdue</option><option>For Resolution</option><option>Replacement</option><option>Resolved</option><option>Completed</option><option>Rejected</option><option>Cancelled</option></select><select id="borrowerTypeFilter"><option value="">All Borrower Types</option><option>Student</option><option>Faculty</option><option>Staff</option><option>Employee</option><option>External</option></select><select id="categoryFilter"><option value="">All Categories</option></select><button class="filter-button" id="overdueOnlyBtn" type="button" aria-pressed="false">☷ Overdue Only</button></div>
     <section class="table-card"><div class="table-note">Showing <b id="shown">10</b> transactions</div><div class="scroll"><table class="txn-table"><thead><tr><th>Transaction No.</th><th>Request Date</th><th>Borrower</th><th>Type</th><th>College / Unit</th><th>Purpose</th><th>Equip.</th><th>Expected Return</th><th>Status</th><th>Reviewed By</th><th>Approved By</th><th>Actions</th></tr></thead><tbody id="transactions"></tbody></table></div><div class="pagination"><button>Prev</button><button>1</button><button>Next</button></div></section>
   </div>
-  <div id="overlay" class="overlay" aria-hidden="true"><aside class="drawer" role="dialog" aria-modal="true" aria-label="Transaction details"><div class="drawer-head"><div class="drawer-title"><div><div id="drawerBadges"></div><h2 id="drawerName"></h2><p id="drawerCollege"></p></div><button class="close" onclick="closeDrawer()" aria-label="Close">×</button></div><div class="drawer-actions" id="drawerActions"></div></div><div class="tabs"><button class="tab active" data-tab="overview">Overview</button><button class="tab" data-tab="workflow">Workflow &amp; QR</button><button class="tab" data-tab="activity">Activity &amp; Notifications</button></div><div id="overview" class="panel active"></div><div id="workflow" class="panel"></div><div id="activity" class="panel"></div></aside></div><div id="toast" class="toast"></div>
+  <div id="overlay" class="overlay" aria-hidden="true"><aside class="drawer" role="dialog" aria-modal="true" aria-label="Transaction details"><div class="drawer-head"><div class="drawer-title"><div><div id="drawerBadges"></div><h2 id="drawerName"></h2><p id="drawerCollege"></p></div><button class="close" onclick="closeDrawer()" aria-label="Close">×</button></div><div class="drawer-actions" id="drawerActions"></div></div><div class="tabs"><button class="tab active" data-tab="overview">Overview</button><button class="tab" data-tab="workflow">Workflow &amp; QR</button></div><div id="overview" class="panel active"></div><div id="workflow" class="panel"></div></aside></div><div id="toast" class="toast"></div>
   <div id="scanOverlay" class="scan-overlay" aria-hidden="true">
     <div class="scan-box" role="dialog" aria-modal="true" aria-label="Scan equipment QR code">
       <div class="scan-head"><b id="scanTitle">Scan Equipment QR</b><button class="close" onclick="closeScanner()" aria-label="Close">×</button></div>
@@ -109,13 +119,41 @@
       <div class="modal-head"><b>New Transaction</b><button class="close" onclick="closeNewTxnModal()" aria-label="Close">×</button></div>
       <div class="modal-body">
         <label>Borrower</label>
+        <input type="text" id="newTxnBorrowerSearch" placeholder="Search by name or college...">
         <select id="newTxnBorrower"><option value="">Loading…</option></select>
+        <button type="button" class="new-borrower-toggle" id="newTxnNewBorrowerToggle">+ New Borrower (not in the list?)</button>
+        <div class="wizard-card" id="newTxnNewBorrowerCard" hidden>
+          <div class="wizard-card__head"><h3>Register a Walk-in Borrower</h3></div>
+          <div class="wizard-field wizard-grid-2">
+            <div><label>First Name</label><input type="text" id="nbFirstName" placeholder="Juan"></div>
+            <div><label>Last Name</label><input type="text" id="nbLastName" placeholder="Dela Cruz"></div>
+          </div>
+          <div class="wizard-field wizard-grid-2">
+            <div><label>Borrower Type</label><select id="nbCategory">
+              <option value="Student">Student</option>
+              <option value="Faculty">Faculty</option>
+              <option value="Staff">Staff (non-teaching university staff)</option>
+              <option value="Employee">Employee</option>
+              <option value="External">External</option>
+            </select></div>
+            <div><label>College / Unit</label><input type="text" id="nbCollege" placeholder="e.g. College of Engineering"></div>
+          </div>
+          <div class="wizard-field wizard-grid-2">
+            <div><label>Email Address</label><input type="email" id="nbEmail" placeholder="for notifications and account recovery"></div>
+            <div><label>Contact Number</label><input type="text" id="nbContact" placeholder="Optional"></div>
+          </div>
+          <p class="form-error" id="nbError"></p>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button type="button" class="btn" id="nbCancelBtn">Cancel</button>
+            <button type="button" class="btn green" id="nbCreateBtn">Create &amp; Select</button>
+          </div>
+        </div>
         <div class="wizard-card" id="newTxnBorrowerDetails" hidden>
           <div class="wizard-card__head"><h3>Borrower Details</h3></div>
-          <div class="wizard-field"><label>Borrower's Name</label><input type="text" id="newTxnBorrowerName" readonly></div>
-          <div class="wizard-field wizard-grid-2">
-            <div><label>Borrower Type</label><input type="text" id="newTxnBorrowerType" readonly></div>
-            <div><label>College / Unit</label><input type="text" id="newTxnBorrowerCollege" readonly></div>
+          <div class="wizard-summary-field"><label>Borrower's Name</label><div id="newTxnBorrowerName">—</div></div>
+          <div class="wizard-summary-grid">
+            <div class="wizard-summary-field"><label>Borrower Type</label><div id="newTxnBorrowerType">—</div></div>
+            <div class="wizard-summary-field"><label>College / Unit</label><div id="newTxnBorrowerCollege">—</div></div>
           </div>
         </div>
         <div class="wizard-card">
@@ -376,8 +414,6 @@
       }
       document.getElementById('workflow').innerHTML=section('Approval Workflow Timeline',workflowTimelineHtml(t))+workflowBody;
       if(['For Resolution','Replacement','Resolved'].includes(t.status))loadResolutionRecords(t);
-      document.getElementById('activity').innerHTML=section('Activity Log / Audit Trail','<div id="activityLogBody" class="ack">Loading…</div>');
-      loadActivityLog(t);
       showTab('overview');document.getElementById('overlay').classList.add('show');document.getElementById('overlay').setAttribute('aria-hidden','false')}
     function closeDrawer(){document.getElementById('overlay').classList.remove('show');document.getElementById('overlay').setAttribute('aria-hidden','true')}
     function showTab(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===id))}
@@ -473,15 +509,11 @@
       catch(e){alert(e.message)}
     }
 
-    // --- Activity tab: real per-transaction audit trail ---
-    async function loadActivityLog(t){
-      const el=document.getElementById('activityLogBody');
-      if(!el)return;
-      try{
-        const rows=await apiFetch(`/api/audit-logs?transactionId=${t.dbId}`);
-        el.innerHTML=rows.length?rows.map(r=>`<div class="activity-log-row"><b>${esc(r.oldStatus)}</b><span class="arrow">→</span><b>${esc(r.newStatus)}</b><span class="sub"> · by ${esc(r.changedBy)}</span>${r.remarks?`<div class="sub">${esc(r.remarks)}</div>`:''}<time>${esc(formatPHDateTime(r.changeDatetime))}</time></div>`).join(''):'<div class="ack">No status changes recorded yet.</div>';
-      }catch(e){el.textContent='Could not load activity: '+e.message}
-    }
+    // The old "Activity & Notifications" tab (per-transaction audit trail)
+    // was removed 2026-10-02 — it only ever duplicated what the Audit Log
+    // page already shows for the same transaction, filtered down to one
+    // row at a time. Full history for any transaction is one click away on
+    // Audit Log, which also has the transaction's clickable quick-overview.
 
     // --- New Transaction modal ---
     // Reformatted to match the borrower's own self-service request wizard
@@ -548,14 +580,70 @@
       renderNewTxnEquipmentList();
     });
     document.getElementById('newTxnAddEquipmentBtn').addEventListener('click',()=>newTxnAddEquipmentRow(null));
-    document.getElementById('newTxnBorrower').addEventListener('change',e=>{
-      const b=newTxnBorrowers.find(x=>x.id===Number(e.target.value));
+    // Renders the Borrower <select> from newTxnBorrowers, optionally
+    // narrowed to rows whose name or college/unit matches the search box —
+    // one renderer for both the initial load and every keystroke in
+    // #newTxnBorrowerSearch, so they can never drift apart.
+    function renderBorrowerOptions(filterText,selectedId){
+      const q=(filterText||'').trim().toLowerCase();
+      const rows=q?newTxnBorrowers.filter(b=>`${b.firstName} ${b.lastName} ${b.collegeOrUnit||''}`.toLowerCase().includes(q)):newTxnBorrowers;
+      const sel=document.getElementById('newTxnBorrower');
+      sel.innerHTML='<option value="">Select borrower…</option>'+rows.map(b=>`<option value="${b.id}" ${b.id===selectedId?'selected':''}>${esc(b.firstName)} ${esc(b.lastName)} — ${esc(b.collegeOrUnit)}</option>`).join('');
+      if(selectedId&&!rows.some(b=>b.id===selectedId))sel.value=String(selectedId);
+    }
+    function applyBorrowerSelection(b){
       const card=document.getElementById('newTxnBorrowerDetails');
       if(!b){card.hidden=true;return}
-      document.getElementById('newTxnBorrowerName').value=`${b.firstName} ${b.lastName}`;
-      document.getElementById('newTxnBorrowerType').value=b.borrowerCategory||'';
-      document.getElementById('newTxnBorrowerCollege').value=b.collegeOrUnit||'';
+      document.getElementById('newTxnBorrowerName').textContent=`${b.firstName} ${b.lastName}`;
+      document.getElementById('newTxnBorrowerType').textContent=b.borrowerCategory||'';
+      document.getElementById('newTxnBorrowerCollege').textContent=b.collegeOrUnit||'';
       card.hidden=false;
+    }
+    document.getElementById('newTxnBorrower').addEventListener('change',e=>{
+      applyBorrowerSelection(newTxnBorrowers.find(x=>x.id===Number(e.target.value)));
+    });
+    document.getElementById('newTxnBorrowerSearch').addEventListener('input',e=>{
+      const current=Number(document.getElementById('newTxnBorrower').value)||null;
+      renderBorrowerOptions(e.target.value,current);
+    });
+
+    // --- "+ New Borrower" inline quick-create (true walk-ins with no
+    // account yet) — see server/controllers/borrower.controller.js#create.
+    function resetNewBorrowerForm(){
+      ['nbFirstName','nbLastName','nbCollege','nbEmail','nbContact'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('nbCategory').value='Student';
+      document.getElementById('nbError').textContent='';
+    }
+    document.getElementById('newTxnNewBorrowerToggle').addEventListener('click',()=>{
+      const card=document.getElementById('newTxnNewBorrowerCard');
+      card.hidden=!card.hidden;
+      if(!card.hidden)resetNewBorrowerForm();
+    });
+    document.getElementById('nbCancelBtn').addEventListener('click',()=>{document.getElementById('newTxnNewBorrowerCard').hidden=true});
+    document.getElementById('nbCreateBtn').addEventListener('click',async()=>{
+      const firstName=document.getElementById('nbFirstName').value.trim();
+      const lastName=document.getElementById('nbLastName').value.trim();
+      const borrowerCategory=document.getElementById('nbCategory').value;
+      const collegeOrUnit=document.getElementById('nbCollege').value.trim();
+      const emailAddress=document.getElementById('nbEmail').value.trim();
+      const contactNumber=document.getElementById('nbContact').value.trim();
+      const errEl=document.getElementById('nbError');
+      if(!firstName||!collegeOrUnit||!emailAddress){errEl.textContent='First name, college/unit, and email address are required.';return}
+      errEl.textContent='';
+      const btn=document.getElementById('nbCreateBtn');
+      btn.disabled=true;btn.textContent='Creating…';
+      try{
+        const borrower=await apiFetch('/api/borrowers',{method:'POST',body:JSON.stringify({firstName,lastName,collegeOrUnit,borrowerCategory,emailAddress,contactNumber:contactNumber||undefined}),headers:{'Content-Type':'application/json'}});
+        newTxnBorrowers=[...newTxnBorrowers,borrower];
+        document.getElementById('newTxnBorrowerSearch').value='';
+        renderBorrowerOptions('',borrower.id);
+        applyBorrowerSelection(borrower);
+        document.getElementById('newTxnNewBorrowerCard').hidden=true;
+      }catch(e){
+        errEl.textContent=e.message;
+      }finally{
+        btn.disabled=false;btn.textContent='Create & Select';
+      }
     });
 
     async function openNewTxnModal(){
@@ -563,6 +651,9 @@
       document.getElementById('newTxnError').textContent='';
       document.getElementById('newTxnBorrower').innerHTML='<option value="">Loading…</option>';
       document.getElementById('newTxnBorrowerDetails').hidden=true;
+      document.getElementById('newTxnBorrowerSearch').value='';
+      document.getElementById('newTxnNewBorrowerCard').hidden=true;
+      resetNewBorrowerForm();
       document.getElementById('newTxnPurpose').value='';
       document.getElementById('newTxnDueDate').value='';
       document.getElementById('newTxnDueTime').value='';
@@ -572,7 +663,7 @@
         const [borrowers,equipment]=await Promise.all([apiFetch('/api/borrowers'),apiFetch('/api/equipment')]);
         newTxnBorrowers=borrowers;
         newTxnProducts=equipment.map(e=>({id:e.id,name:e.equipmentName,available:e.availableQuantity,total:e.totalQuantity}));
-        document.getElementById('newTxnBorrower').innerHTML='<option value="">Select borrower…</option>'+borrowers.map(b=>`<option value="${b.id}">${esc(b.firstName)} ${esc(b.lastName)} — ${esc(b.collegeOrUnit)}</option>`).join('');
+        renderBorrowerOptions('',null);
         newTxnAddEquipmentRow(null);
       }catch(e){
         document.getElementById('newTxnError').textContent=e.message;

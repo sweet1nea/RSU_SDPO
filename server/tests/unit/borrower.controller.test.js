@@ -13,12 +13,14 @@
 // claude/RSU_SDPO_System_Audit_2026-10-01.md.
 
 jest.mock('../../models', () => ({
-  Borrower: { findAll: jest.fn(), findOne: jest.fn(), findByPk: jest.fn() },
-  User: {}
+  Borrower: { findAll: jest.fn(), findOne: jest.fn(), findByPk: jest.fn(), create: jest.fn() },
+  User: { findOne: jest.fn(), create: jest.fn() },
+  sequelize: { transaction: jest.fn((cb) => cb({})) }
 }));
 jest.mock('../../config/supabase', () => ({ getClient: jest.fn() }));
+jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
 
-const { Borrower } = require('../../models');
+const { Borrower, User } = require('../../models');
 const { getClient } = require('../../config/supabase');
 const ctrl = require('../../controllers/borrower.controller');
 
@@ -82,6 +84,98 @@ describe('GET /api/borrowers', () => {
     await ctrl.list({}, res);
 
     expect(res.json.mock.calls[0][0].data[0].user).toBeNull();
+  });
+});
+
+// POST /api/borrowers (create) — added 2026-10-02 for the New Transaction
+// modal's "+ New Borrower" flow: lets staff register a true walk-in (no
+// existing account) on the spot, without the borrower going through
+// self-service registration (auth.controller.js#register) first.
+describe('POST /api/borrowers (create)', () => {
+  function validBody(overrides) {
+    return {
+      firstName: 'Juan',
+      lastName: 'Dela Cruz',
+      collegeOrUnit: 'CCS',
+      borrowerCategory: 'Student',
+      emailAddress: 'juan.walkin@example.com',
+      contactNumber: '09171234567',
+      ...overrides
+    };
+  }
+
+  test('rejects with 400 when a required field is missing', async () => {
+    await expect(
+      ctrl.create({ body: validBody({ collegeOrUnit: '' }) }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+
+  test('rejects with 400 for an unrecognized borrowerCategory', async () => {
+    await expect(
+      ctrl.create({ body: validBody({ borrowerCategory: 'Alumni' }) }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('rejects with 409 when the email address is already in use', async () => {
+    User.findOne.mockResolvedValueOnce({ id: 3, emailAddress: 'juan.walkin@example.com' });
+
+    await expect(ctrl.create({ body: validBody() }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
+    expect(Borrower.create).not.toHaveBeenCalled();
+  });
+
+  test('creates a User (role Borrower, verified, random password) and a linked Borrower row, and returns the serialized borrower', async () => {
+    User.findOne
+      .mockResolvedValueOnce(null) // email not already in use
+      .mockResolvedValueOnce(null); // generated username is available on first try
+    User.create.mockResolvedValueOnce({ id: 42 });
+    Borrower.create.mockResolvedValueOnce({ id: 7 });
+    Borrower.findByPk.mockResolvedValueOnce({
+      id: 7,
+      firstName: 'Juan',
+      lastName: 'Dela Cruz',
+      middleName: null,
+      collegeOrUnit: 'CCS',
+      borrowerCategory: 'Student',
+      directorAuthorizationStatus: 'Not Required',
+      user: { id: 42, emailAddress: 'juan.walkin@example.com', accountStatus: 'Active' }
+    });
+
+    const res = mockRes();
+    await ctrl.create({ body: validBody() }, res);
+
+    expect(User.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAddress: 'juan.walkin@example.com',
+        password: 'hashed-password',
+        userRole: 'Borrower',
+        contactNumber: '09171234567',
+        emailVerified: true,
+        username: expect.stringMatching(/^walkin\./)
+      }),
+      expect.anything()
+    );
+    expect(Borrower.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 42, firstName: 'Juan', lastName: 'Dela Cruz', collegeOrUnit: 'CCS', borrowerCategory: 'Student' }),
+      expect.anything()
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({ id: 7, firstName: 'Juan', collegeOrUnit: 'CCS', borrowerCategory: 'Student' })
+    });
+  });
+
+  test('defaults lastName to an empty string and contactNumber to null when omitted', async () => {
+    User.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    User.create.mockResolvedValueOnce({ id: 50 });
+    Borrower.create.mockResolvedValueOnce({ id: 11 });
+    Borrower.findByPk.mockResolvedValueOnce({ id: 11, firstName: 'Mina', lastName: '', collegeOrUnit: 'CBA', borrowerCategory: 'External', user: null });
+
+    await ctrl.create({ body: validBody({ lastName: undefined, contactNumber: undefined }) }, mockRes());
+
+    expect(User.create).toHaveBeenCalledWith(expect.objectContaining({ contactNumber: null }), expect.anything());
+    expect(Borrower.create).toHaveBeenCalledWith(expect.objectContaining({ lastName: '' }), expect.anything());
   });
 });
 

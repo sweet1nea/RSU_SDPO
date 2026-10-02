@@ -2,8 +2,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Borrower, User } = require('../models');
-const { requirementsFor, missingDocuments } = require('../constants/borrowerCategories');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const { Borrower, User, sequelize } = require('../models');
+const { requirementsFor, missingDocuments, BORROWER_CATEGORIES } = require('../constants/borrowerCategories');
 const { getClient } = require('../config/supabase');
 
 const DOCUMENTS_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'borrower-documents';
@@ -29,6 +31,84 @@ exports.list = async (req, res) => {
     order: [['lastName', 'ASC'], ['firstName', 'ASC']]
   });
   res.json({ success: true, data: rows.map(serialize) });
+};
+
+function slugPart(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20);
+}
+
+// Generates a unique, human-readable username for a borrower who isn't
+// choosing one themselves (see exports.create below). Collisions are
+// vanishingly unlikely (a random hex suffix after the first try) but
+// User.username is a unique column, so this still confirms availability
+// against the database rather than assuming the suffix is enough.
+async function uniqueWalkinUsername(firstName, lastName) {
+  const base = `walkin.${slugPart(firstName)}${slugPart(lastName) ? '.' + slugPart(lastName) : ''}` || 'walkin.borrower';
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const candidate = attempt === 0 ? base : `${base}.${crypto.randomBytes(3).toString('hex')}`;
+    // eslint-disable-next-line no-await-in-loop
+    const taken = await User.findOne({ where: { username: candidate } });
+    if (!taken) return candidate;
+  }
+  return `walkin.${crypto.randomBytes(6).toString('hex')}`;
+}
+
+// Staff-facing quick-create for a true walk-in borrower who has no account
+// yet — backs the New Transaction modal's "+ New Borrower" flow. Mirrors
+// auth.controller.js#register's User+Borrower creation (same two tables,
+// same atomicity via sequelize.transaction) but skips the parts of
+// self-registration that don't apply to a staff-verified counter
+// interaction: the borrower doesn't choose a username or password (a
+// random password is generated — they can set their own later from the
+// login screen's "Forgot password", using the email on file, if they ever
+// want to sign in themselves), and no verification email is sent
+// (emailVerified defaults true, same as every other non-self-registered
+// account) since staff already checked the person and their documents in
+// person before creating the record.
+exports.create = async (req, res) => {
+  const { firstName, lastName, collegeOrUnit, borrowerCategory, emailAddress, contactNumber } = req.body;
+  if (!firstName || !collegeOrUnit || !borrowerCategory || !emailAddress) {
+    const err = new Error('firstName, collegeOrUnit, borrowerCategory, and emailAddress are required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!BORROWER_CATEGORIES.includes(borrowerCategory)) {
+    const err = new Error(`borrowerCategory must be one of: ${BORROWER_CATEGORIES.join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existingEmail = await User.findOne({ where: { emailAddress } });
+  if (existingEmail) {
+    const err = new Error('A borrower with that email address already has an account — search for them above instead of creating a new one.');
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const username = await uniqueWalkinUsername(firstName, lastName);
+  const passwordHash = await bcrypt.hash(crypto.randomBytes(18).toString('base64'), 10);
+
+  const borrowerId = await sequelize.transaction(async (t) => {
+    const user = await User.create(
+      {
+        username,
+        emailAddress,
+        password: passwordHash,
+        userRole: 'Borrower',
+        contactNumber: contactNumber || null,
+        emailVerified: true
+      },
+      { transaction: t }
+    );
+    const borrower = await Borrower.create(
+      { userId: user.id, firstName, lastName: lastName || '', collegeOrUnit, borrowerCategory },
+      { transaction: t }
+    );
+    return borrower.id;
+  });
+
+  const withUser = await Borrower.findByPk(borrowerId, { include: [{ model: User, as: 'user' }] });
+  res.status(201).json({ success: true, data: serialize(withUser) });
 };
 
 // Upload state plus what this borrower's type requires, so every screen

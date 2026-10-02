@@ -573,7 +573,7 @@ describe('serialize()', () => {
     const data = res.json.mock.calls[0][0].data[0];
     expect(data.date).toBe('Sep 1, 2026');
     expect(data.time).toBe('1:30 AM');
-    expect(data.id).toBe('TN1-2026-0093');
+    expect(data.id).toBe('TN93-2026');
   });
 
   test('units carry the canonical Equipment ID of their equipment', async () => {

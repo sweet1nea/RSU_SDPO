@@ -67,7 +67,7 @@ describe('GET /api/damage-loss (list)', () => {
     await ctrl.list({}, res);
     const row = res.json.mock.calls[0][0].data[0];
     expect(row).not.toHaveProperty('fee');
-    expect(row.transactionCode).toBe('TN1-2026-0005');
+    expect(row.transactionCode).toBe('TN5-2026');
     expect(row.dateReported).toBe('Aug 1, 2026');
   });
 

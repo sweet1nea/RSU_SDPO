@@ -10,6 +10,10 @@ const borrowerOnly = roleMiddleware(['Borrower']);
 const staffOnly = roleMiddleware(['Admin', 'Director', 'Staff']);
 
 router.get('/', authMiddleware, staffOnly, catchAsync(ctrl.list));
+// Staff-only quick-create for a walk-in borrower who has no account yet —
+// see borrower.controller.js#create for why this differs from self-service
+// registration (auth.controller.js#register).
+router.post('/', authMiddleware, staffOnly, catchAsync(ctrl.create));
 router.get('/me/documents', authMiddleware, borrowerOnly, catchAsync(ctrl.myDocumentStatus));
 router.post('/me/documents', authMiddleware, borrowerOnly, uploadDocuments, catchAsync(ctrl.uploadDocuments));
 

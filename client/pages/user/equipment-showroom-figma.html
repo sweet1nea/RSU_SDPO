@@ -164,6 +164,17 @@
     .wizard-field textarea{resize:vertical;min-height:80px;font-family:inherit}
     .wizard-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
+    /* Read-only borrower summary (account details already on file) shown as
+       plain label/value pairs instead of disabled-looking input boxes —
+       these were never editable here anyway (they come from the account's
+       own profile; see Settings to change them), so styling them like a
+       form the borrower could fill in was misleading. */
+    .wizard-summary-field{display:block}
+    .wizard-summary-field+.wizard-summary-field{margin-top:14px}
+    .wizard-summary-field label{display:block;font-size:10px;font-weight:700;color:#8a97ab;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+    .wizard-summary-field div{font-size:14px;font-weight:600;color:#1d293d}
+    .wizard-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+
     .equip-row{background:var(--canvas);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start}
     .equip-row+.equip-row{margin-top:10px}
     .equip-row__main{flex:1;min-width:0}
@@ -396,10 +407,10 @@
         <p class="wizard-sub">Fill in your information and the equipment you want to borrow.</p>
         <div class="wizard-card">
           <div class="wizard-card__head"><h3>Borrower Details</h3></div>
-          <div class="wizard-field"><label>Borrower's Name <em>*</em></label><input type="text" id="slipBorrowerName" readonly></div>
-          <div class="wizard-field wizard-grid-2">
-            <div><label>Borrower Type <em>*</em></label><input type="text" id="slipBorrowerType" readonly></div>
-            <div><label>College / Unit <em>*</em></label><input type="text" id="slipCollege" readonly></div>
+          <div class="wizard-summary-field"><label>Borrower's Name</label><div id="slipBorrowerName">—</div></div>
+          <div class="wizard-summary-grid">
+            <div class="wizard-summary-field"><label>Borrower Type</label><div id="slipBorrowerType">—</div></div>
+            <div class="wizard-summary-field"><label>College / Unit</label><div id="slipCollege">—</div></div>
           </div>
         </div>
         <div class="wizard-card">
@@ -853,9 +864,9 @@
     function formatTime(t){const[h,m]=t.split(':').map(Number);const d=new Date();d.setHours(h,m);return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
 
     function renderReview(){
-      $('reviewName').textContent=$('slipBorrowerName').value;
-      $('reviewType').textContent=$('slipBorrowerType').value;
-      $('reviewCollege').textContent=$('slipCollege').value;
+      $('reviewName').textContent=$('slipBorrowerName').textContent;
+      $('reviewType').textContent=$('slipBorrowerType').textContent;
+      $('reviewCollege').textContent=$('slipCollege').textContent;
       $('reviewEquipment').innerHTML=equipmentRows.map(r=>{
         const p=productById(r.equipmentId);
         return `<div class="review-item"><span class="review-item__name">${p?`<img class="review-item__thumb" src="${esc(productThumb(p))}" alt="" onerror="${UI.imageFallbackAttr(p.category)}">${esc(p.name)} <small>(${esc(p.code)})</small>`:''}</span><span class="review-qty">${r.quantity} unit${r.quantity>1?'s':''}</span></div>`;
@@ -948,9 +959,9 @@
       if(rows.length)$('welcomeName').textContent=`Welcome back, ${firstName}.`;
     }).catch(()=>{});
     loadEligibility();
-    $('slipBorrowerName').value=displayName;
-    $('slipBorrowerType').value=(borrowerProfile&&borrowerProfile.borrowerCategory)||'—';
-    $('slipCollege').value=(borrowerProfile&&borrowerProfile.collegeOrUnit)||'—';
+    $('slipBorrowerName').textContent=displayName;
+    $('slipBorrowerType').textContent=(borrowerProfile&&borrowerProfile.borrowerCategory)||'—';
+    $('slipCollege').textContent=(borrowerProfile&&borrowerProfile.collegeOrUnit)||'—';
     applyDocRequirements(borrowerProfile&&borrowerProfile.borrowerCategory);
 
     function refreshCatalog(){
@@ -987,8 +998,8 @@
     document.addEventListener('appshell:user-updated',e=>{
       const bp=e.detail&&e.detail.borrowerProfile;
       if(!bp)return;
-      $('slipBorrowerType').value=bp.borrowerCategory||'—';
-      $('slipCollege').value=bp.collegeOrUnit||'—';
+      $('slipBorrowerType').textContent=bp.borrowerCategory||'—';
+      $('slipCollege').textContent=bp.collegeOrUnit||'—';
       applyDocRequirements(bp.borrowerCategory);
     });
 

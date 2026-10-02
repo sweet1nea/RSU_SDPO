@@ -371,6 +371,6 @@ describe('GET /api/reports/transaction-log', () => {
     expect(payload.data.byDay['12']).toHaveLength(1);
     expect(payload.data.byDay['5'][0].name).toBe('Ana Reyes');
     // serialize() output shape sanity check
-    expect(payload.data.byDay['5'][0]).toMatchObject({ dbId: 101, id: 'TN1-2026-0101' });
+    expect(payload.data.byDay['5'][0]).toMatchObject({ dbId: 101, id: 'TN101-2026' });
   });
 });
