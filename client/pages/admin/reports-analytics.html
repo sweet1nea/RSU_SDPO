@@ -102,6 +102,42 @@
 
     function showEmpty(){paper.classList.add('hidden');empty.classList.remove('hidden')}
 
+    // Best-effort print page count (2026-10-02). The on-screen preview is
+    // also what the Print button sends to the browser's print dialog, but
+    // JavaScript has no way to ask the browser how many physical pages a
+    // print job will actually produce — that's decided by the print engine
+    // at print time, not exposed back to the page. So instead of the old
+    // static "Legal (8.5 × 14 in)" label, the footer shows an ESTIMATED
+    // page count: the rendered content height (#paper.scrollHeight) divided
+    // by the usable height of one Legal page (the page size minus the
+    // @media print @page margin below), matching the same portrait/
+    // landscape rule applied there. This can drift slightly from the real
+    // print output — on-screen text wraps at #paper's on-screen width
+    // (~816px), not the narrower post-margin printable width the browser
+    // actually prints at — but it's close for these report tables, and far
+    // more useful than a fixed paper-size label. The downloadable PDF
+    // (server/reports/templates/reportRenderer.js) is unaffected by any of
+    // this — it computes its own real, exact page count server-side.
+    const LEGAL_WIDTH_IN=8.5,LEGAL_HEIGHT_IN=14,PRINT_MARGIN_MM=14,PX_PER_IN=96,PX_PER_MM=PX_PER_IN/25.4;
+    let lastHeadsLength=0;
+    function estimatedPageCount(headsLength){
+      const landscape=headsLength>5;
+      const pageHeightPx=(landscape?LEGAL_WIDTH_IN:LEGAL_HEIGHT_IN)*PX_PER_IN;
+      const usableHeightPx=pageHeightPx-(PRINT_MARGIN_MM*PX_PER_MM*2);
+      const contentHeightPx=paper.scrollHeight;
+      return Math.max(1,Math.ceil(contentHeightPx/usableHeightPx));
+    }
+    function updatePageCountFooter(){
+      const el=document.getElementById('pageCountFoot');
+      if(!el||paper.classList.contains('hidden'))return;
+      const pages=estimatedPageCount(lastHeadsLength);
+      el.textContent=`Page 1 of ${pages}`;
+    }
+    // Recomputed right before the print dialog opens too (not just at
+    // Generate time), so a window resize in between doesn't leave a stale
+    // estimate from the earlier layout.
+    window.addEventListener('beforeprint',updatePageCountFooter);
+
     let generatedSeq=0;
     async function render(kind){
       if(kind==='empty'){showEmpty();return}
@@ -153,11 +189,13 @@
       // the Prepared-by signature line, which the PDF doesn't render at all
       // but is kept here since it's a genuinely useful on-screen/print
       // addition, not something being removed for parity's sake.
-      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span>Legal (8.5 × 14 in)</span></div>`;
+      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span id="pageCountFoot">Page 1 of 1</span></div>`;
       // Same orientation rule as the PDF/Excel exports: landscape when the table has more than 5 columns.
       let pageStyle=document.getElementById('reportPageStyle');
       if(!pageStyle){pageStyle=document.createElement('style');pageStyle.id='reportPageStyle';document.head.appendChild(pageStyle);}
       pageStyle.textContent=`@media print{@page{size:legal ${r.heads.length>5?'landscape':'portrait'};margin:14mm}}`;
+      lastHeadsLength=r.heads.length;
+      updatePageCountFooter();
     }
 
     function showToast(message){
