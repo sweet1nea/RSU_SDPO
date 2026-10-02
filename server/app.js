@@ -121,7 +121,23 @@ app.use('/api', (req, res, next) => {
 app.use('/api', routes);
 
 // Static client (optional, adjust if serving client separately)
-app.use(express.static('client'));
+// 2026-10-02: express.static() set no Cache-Control header at all by
+// default here, only ETag/Last-Modified — and Vercel's build output
+// normalizes file mtimes to a fixed, years-old date (observed:
+// 2018-10-20), which browsers use to compute an RFC 7234 *heuristic*
+// freshness lifetime when no Cache-Control is present. An old
+// Last-Modified means a long heuristic lifetime, so Chrome kept serving
+// a stale cached copy of pages/scripts for a returning visitor straight
+// from disk cache, with no revalidation request ever reaching the
+// server — even well after a new deploy landed. A staff member testing
+// a just-shipped fix in an already-open browser saw the old behavior
+// and reasonably reported it as broken again.
+// Cache-Control: no-cache forces the browser to always revalidate with
+// the server (a conditional GET using the ETag Express already sends),
+// so a deploy is picked up on the very next request — at the cost of
+// one cheap 304 round trip per asset when nothing changed, which is
+// the right trade for a low-traffic internal office tool.
+app.use(express.static('client', { setHeaders: (res) => res.set('Cache-Control', 'no-cache') }));
 
 // Global error handler (must be last)
 app.use(errorHandler);
