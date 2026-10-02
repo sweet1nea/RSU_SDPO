@@ -174,17 +174,13 @@
     .wizard-summary-field label{display:block;font-size:10px;font-weight:700;color:#8a97ab;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
     .wizard-summary-field div{font-size:14px;font-weight:600;color:#1d293d}
     .wizard-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
-
-    /* Borrower Details identity header — an avatar-plus-pill treatment so
-       the card reads as "here is who you are" rather than a bare label/
-       value list. The type pill reuses the exact purple used for the Type
-       badge on the admin Transaction Management table (same field, same
-       color, by design) so the two sides agree visually. */
-    .borrower-id-row{display:flex;align-items:center;gap:14px}
-    .borrower-avatar{width:48px;height:48px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--deep),#00b37e);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:.5px}
-    .borrower-id-main{min-width:0}
-    .borrower-id-name{font-size:16px;font-weight:700;color:#1d293d;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .borrower-type-pill{display:inline-flex;align-items:center;background:#ede9fe;color:#7c3aed;border-radius:999px;padding:3px 11px;font-size:11px;font-weight:700}
+    /* The adjacent-sibling rule above (.wizard-summary-field+.wizard-summary-field)
+       matches DOM order, not visual column — inside a two-column grid it was
+       also landing on the second column's field (e.g. "College / Unit"),
+       giving it a top margin the first column didn't have and knocking the
+       two label/value pairs out of alignment with each other. Cancel it
+       inside the grid so both columns start on the same line. */
+    .wizard-summary-grid>.wizard-summary-field{margin-top:0}
 
     .equip-row{background:var(--canvas);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start}
     .equip-row+.equip-row{margin-top:10px}
@@ -418,14 +414,11 @@
         <p class="wizard-sub">Fill in your information and the equipment you want to borrow.</p>
         <div class="wizard-card">
           <div class="wizard-card__head"><h3>Borrower Details</h3></div>
-          <div class="borrower-id-row">
-            <div class="borrower-avatar" id="slipBorrowerAvatar">—</div>
-            <div class="borrower-id-main">
-              <div class="borrower-id-name" id="slipBorrowerName">—</div>
-              <span class="borrower-type-pill" id="slipBorrowerType">—</span>
-            </div>
+          <div class="wizard-summary-field"><label>Borrower's Name</label><div id="slipBorrowerName">—</div></div>
+          <div class="wizard-summary-grid">
+            <div class="wizard-summary-field"><label>Borrower Type</label><div id="slipBorrowerType">—</div></div>
+            <div class="wizard-summary-field"><label>College / Unit</label><div id="slipCollege">—</div></div>
           </div>
-          <div class="wizard-summary-field" style="margin-top:16px"><label>College / Unit</label><div id="slipCollege">—</div></div>
         </div>
         <div class="wizard-card">
           <div class="wizard-card__head"><h3>Equipment Request</h3></div>
@@ -957,14 +950,6 @@
       setTimeout(()=>toast.remove(),3200);
     }
 
-    // First letter of up to the first two words of a name, for the
-    // Borrower Details avatar circle — falls back to '—' for an empty name
-    // rather than an empty circle.
-    function initialsOf(name){
-      const parts=(name||'').trim().split(/\s+/).filter(Boolean);
-      return parts.length?parts.slice(0,2).map(w=>w[0].toUpperCase()).join(''):'—';
-    }
-
     /* ---------- Init ---------- */
     const loggedInUser=currentUser();
     const borrowerProfile=loggedInUser&&loggedInUser.borrowerProfile;
@@ -982,7 +967,6 @@
     }).catch(()=>{});
     loadEligibility();
     $('slipBorrowerName').textContent=displayName;
-    $('slipBorrowerAvatar').textContent=initialsOf(displayName);
     $('slipBorrowerType').textContent=(borrowerProfile&&borrowerProfile.borrowerCategory)||'—';
     $('slipCollege').textContent=(borrowerProfile&&borrowerProfile.collegeOrUnit)||'—';
     applyDocRequirements(borrowerProfile&&borrowerProfile.borrowerCategory);
