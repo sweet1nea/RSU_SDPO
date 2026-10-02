@@ -144,6 +144,14 @@
             <div><label>Email Address</label><input type="email" id="nbEmail" placeholder="for notifications and account recovery"></div>
             <div><label>Contact Number</label><input type="text" id="nbContact" placeholder="Optional"></div>
           </div>
+          <div class="wizard-field">
+            <label>Temporary Password</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="nbPassword" placeholder="At least 8 characters" style="flex:1">
+              <button type="button" class="btn" id="nbGeneratePasswordBtn" style="white-space:nowrap">Generate</button>
+            </div>
+            <p class="sub" style="margin-top:5px">Tell the borrower this password at the counter — they can change it anytime from Settings once logged in.</p>
+          </div>
           <p class="form-error" id="nbError"></p>
           <div style="display:flex;gap:8px;margin-top:12px">
             <button type="button" class="btn" id="nbCancelBtn">Cancel</button>
@@ -619,7 +627,7 @@
     // --- "+ New Borrower" inline quick-create (true walk-ins with no
     // account yet) — see server/controllers/borrower.controller.js#create.
     function resetNewBorrowerForm(){
-      ['nbFirstName','nbLastName','nbCollege','nbEmail','nbContact'].forEach(id=>document.getElementById(id).value='');
+      ['nbFirstName','nbLastName','nbCollege','nbEmail','nbContact','nbPassword'].forEach(id=>document.getElementById(id).value='');
       document.getElementById('nbCategory').value='Student';
       document.getElementById('nbError').textContent='';
     }
@@ -629,6 +637,14 @@
       if(!card.hidden)resetNewBorrowerForm();
     });
     document.getElementById('nbCancelBtn').addEventListener('click',()=>{document.getElementById('newTxnNewBorrowerCard').hidden=true});
+    // Quick, readable (not maximum-entropy) suggestion staff can hand the
+    // borrower on the spot — they're told to change it from Settings
+    // afterward anyway, so this only has to be easy to read and type once.
+    document.getElementById('nbGeneratePasswordBtn').addEventListener('click',()=>{
+      const words=['Court','Ladder','Whistle','Jersey','Cone','Rally','Net','Pitch'];
+      const word=words[Math.floor(Math.random()*words.length)];
+      document.getElementById('nbPassword').value=word+Math.floor(1000+Math.random()*9000);
+    });
     document.getElementById('nbCreateBtn').addEventListener('click',async()=>{
       const firstName=document.getElementById('nbFirstName').value.trim();
       const lastName=document.getElementById('nbLastName').value.trim();
@@ -636,13 +652,15 @@
       const collegeOrUnit=document.getElementById('nbCollege').value.trim();
       const emailAddress=document.getElementById('nbEmail').value.trim();
       const contactNumber=document.getElementById('nbContact').value.trim();
+      const password=document.getElementById('nbPassword').value;
       const errEl=document.getElementById('nbError');
-      if(!firstName||!collegeOrUnit||!emailAddress){errEl.textContent='First name, college/unit, and email address are required.';return}
+      if(!firstName||!collegeOrUnit||!emailAddress||!password){errEl.textContent='First name, college/unit, email address, and password are required.';return}
+      if(password.length<8){errEl.textContent='Password must be at least 8 characters long.';return}
       errEl.textContent='';
       const btn=document.getElementById('nbCreateBtn');
       btn.disabled=true;btn.textContent='Creating…';
       try{
-        const borrower=await apiFetch('/api/borrowers',{method:'POST',body:JSON.stringify({firstName,lastName,collegeOrUnit,borrowerCategory,emailAddress,contactNumber:contactNumber||undefined}),headers:{'Content-Type':'application/json'}});
+        const borrower=await apiFetch('/api/borrowers',{method:'POST',body:JSON.stringify({firstName,lastName,collegeOrUnit,borrowerCategory,emailAddress,contactNumber:contactNumber||undefined,password}),headers:{'Content-Type':'application/json'}});
         newTxnBorrowers=[...newTxnBorrowers,borrower];
         document.getElementById('newTxnBorrowerSearch').value='';
         renderBorrowerOptions('',borrower.id);

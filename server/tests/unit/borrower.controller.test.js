@@ -22,6 +22,7 @@ jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password'
 
 const { Borrower, User } = require('../../models');
 const { getClient } = require('../../config/supabase');
+const bcrypt = require('bcrypt');
 const ctrl = require('../../controllers/borrower.controller');
 
 function mockRes() {
@@ -100,6 +101,7 @@ describe('POST /api/borrowers (create)', () => {
       borrowerCategory: 'Student',
       emailAddress: 'juan.walkin@example.com',
       contactNumber: '09171234567',
+      password: 'Court4821',
       ...overrides
     };
   }
@@ -107,6 +109,20 @@ describe('POST /api/borrowers (create)', () => {
   test('rejects with 400 when a required field is missing', async () => {
     await expect(
       ctrl.create({ body: validBody({ collegeOrUnit: '' }) }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+
+  test('rejects with 400 when password is missing', async () => {
+    await expect(
+      ctrl.create({ body: validBody({ password: '' }) }, mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(User.findOne).not.toHaveBeenCalled();
+  });
+
+  test('rejects with 400 when password is shorter than 8 characters', async () => {
+    await expect(
+      ctrl.create({ body: validBody({ password: 'short1' }) }, mockRes())
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(User.findOne).not.toHaveBeenCalled();
   });
@@ -124,7 +140,7 @@ describe('POST /api/borrowers (create)', () => {
     expect(Borrower.create).not.toHaveBeenCalled();
   });
 
-  test('creates a User (role Borrower, verified, random password) and a linked Borrower row, and returns the serialized borrower', async () => {
+  test('creates a User (role Borrower, verified, staff-set password) and a linked Borrower row, and returns the serialized borrower', async () => {
     User.findOne
       .mockResolvedValueOnce(null) // email not already in use
       .mockResolvedValueOnce(null); // generated username is available on first try
@@ -144,6 +160,9 @@ describe('POST /api/borrowers (create)', () => {
     const res = mockRes();
     await ctrl.create({ body: validBody() }, res);
 
+    // The password staff typed in is what gets hashed — not a random,
+    // nobody-knows-it value, so the borrower can actually log in with it.
+    expect(bcrypt.hash).toHaveBeenCalledWith('Court4821', 10);
     expect(User.create).toHaveBeenCalledWith(
       expect.objectContaining({
         emailAddress: 'juan.walkin@example.com',

@@ -58,17 +58,28 @@ async function uniqueWalkinUsername(firstName, lastName) {
 // auth.controller.js#register's User+Borrower creation (same two tables,
 // same atomicity via sequelize.transaction) but skips the parts of
 // self-registration that don't apply to a staff-verified counter
-// interaction: the borrower doesn't choose a username or password (a
-// random password is generated — they can set their own later from the
-// login screen's "Forgot password", using the email on file, if they ever
-// want to sign in themselves), and no verification email is sent
-// (emailVerified defaults true, same as every other non-self-registered
-// account) since staff already checked the person and their documents in
-// person before creating the record.
+// interaction: the borrower doesn't choose their own username (one is
+// generated below) and no verification email is sent (emailVerified
+// defaults true, same as every other non-self-registered account) since
+// staff already checked the person and their documents in person before
+// creating the record. Staff DO set the initial password here (by request
+// — a borrower created with an unknown, randomly-generated password had no
+// practical way to ever sign in): staff relay it to the borrower at the
+// counter, and the borrower can change it to one only they know anytime
+// afterward from Settings → Change Password (user.controller.js#
+// changePassword), the same self-service flow every other account uses.
 exports.create = async (req, res) => {
-  const { firstName, lastName, collegeOrUnit, borrowerCategory, emailAddress, contactNumber } = req.body;
-  if (!firstName || !collegeOrUnit || !borrowerCategory || !emailAddress) {
-    const err = new Error('firstName, collegeOrUnit, borrowerCategory, and emailAddress are required');
+  const { firstName, lastName, collegeOrUnit, borrowerCategory, emailAddress, contactNumber, password } = req.body;
+  if (!firstName || !collegeOrUnit || !borrowerCategory || !emailAddress || !password) {
+    const err = new Error('firstName, collegeOrUnit, borrowerCategory, emailAddress, and password are required');
+    err.statusCode = 400;
+    throw err;
+  }
+  // Same minimum as the self-service change-password flow
+  // (user.controller.js#changePassword) — one password-strength rule for
+  // every account in the system, not a separate one for walk-ins.
+  if (password.length < 8) {
+    const err = new Error('Password must be at least 8 characters long');
     err.statusCode = 400;
     throw err;
   }
@@ -86,7 +97,7 @@ exports.create = async (req, res) => {
   }
 
   const username = await uniqueWalkinUsername(firstName, lastName);
-  const passwordHash = await bcrypt.hash(crypto.randomBytes(18).toString('base64'), 10);
+  const passwordHash = await bcrypt.hash(password, 10);
 
   const borrowerId = await sequelize.transaction(async (t) => {
     const user = await User.create(
