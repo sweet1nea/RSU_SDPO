@@ -32,7 +32,7 @@
     <!-- Request activity for the selected semester (requestDatetime within the term, PHT). -->
     <section class="term-stats" aria-label="Semester activity">
       <article class="term-stat"><span>Total Requests</span><b id="statTransactions">—</b></article>
-      <article class="term-stat"><span>Pending Review / Approval</span><b id="statPending">—</b><small id="statPendingSplit"></small></article>
+      <article class="term-stat"><span>Pending Approval</span><b id="statPending">—</b><small id="statPendingSplit"></small></article>
       <article class="term-stat"><span>Approved</span><b id="statApproved">—</b></article>
       <article class="term-stat"><span>Rejected</span><b id="statRejected">—</b></article>
       <article class="term-stat"><span>Returned (units)</span><b id="statReturned">—</b></article>
@@ -57,7 +57,10 @@
       document.getElementById('welcomeText').textContent=`The Sports Equipment & Transaction Monitoring System is active. Currently managing ${d.totalEquipment} equipment units across ${d.equipmentTypes} equipment types with real-time tracking.`;
       document.getElementById('statTransactions').textContent=d.totalTransactions;
       document.getElementById('statPending').textContent=d.pendingRequests;
-      document.getElementById('statPendingSplit').textContent=`${d.awaitingReview} document review · ${d.awaitingApproval} Director`;
+      // Single approval step (2026-10-02): no more Admin/Staff-review vs
+      // Director-approval split to show — awaitingApproval only reflects
+      // any pre-existing legacy "For Approval" rows (should normally be 0).
+      document.getElementById('statPendingSplit').textContent=d.awaitingApproval>0?`${d.awaitingApproval} awaiting a legacy approval step`:'Awaiting SDPO review';
       document.getElementById('statApproved').textContent=d.approvedRequests;
       document.getElementById('statRejected').textContent=d.rejectedRequests;
       document.getElementById('statReturned').textContent=d.returnedEquipment;

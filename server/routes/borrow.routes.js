@@ -6,11 +6,6 @@ const ctrl = require('../controllers/borrow.controller');
 
 const router = express.Router();
 const staffOnly = roleMiddleware(['Admin', 'Director', 'Staff']);
-// Document review/verification is Admin/Staff work; approval is the
-// Director's (Admin as superuser). The Director can view everything but
-// doesn't perform the Staff review step itself.
-const reviewerOnly = roleMiddleware(['Admin', 'Staff']);
-const directorOnly = roleMiddleware(['Admin', 'Director']);
 const borrowerOnly = roleMiddleware(['Borrower']);
 
 router.use(authMiddleware);
@@ -20,8 +15,14 @@ router.get('/eligibility', borrowerOnly, catchAsync(ctrl.eligibility));
 router.post('/', staffOnly, catchAsync(ctrl.create));
 router.post('/request', borrowerOnly, catchAsync(ctrl.createSelfRequest));
 router.patch('/:id/cancel', borrowerOnly, catchAsync(ctrl.cancelSelfRequest));
-router.patch('/:id/review', reviewerOnly, catchAsync(ctrl.review));
-router.patch('/:id/approve', directorOnly, catchAsync(ctrl.approve));
+// Single approval step (2026-10-02): the Director, Property Custodian, and
+// Administrative Aide VI (Admin/Director/Staff) have identical access to
+// review/approve a request — no separate reviewer-vs-director gate.
+// '/approve' is kept only as a legacy fallback for any request that was
+// already sitting in the old two-step "For Approval" status before this
+// change; new requests are approved entirely through '/review'.
+router.patch('/:id/review', staffOnly, catchAsync(ctrl.review));
+router.patch('/:id/approve', staffOnly, catchAsync(ctrl.approve));
 router.patch('/:id/reject', staffOnly, catchAsync(ctrl.reject));
 router.post('/:id/release', staffOnly, catchAsync(ctrl.release));
 router.patch('/:id/complete', staffOnly, catchAsync(ctrl.complete));

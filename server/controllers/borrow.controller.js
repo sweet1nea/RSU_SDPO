@@ -333,7 +333,7 @@ exports.create = async (req, res) => {
     }
 
     // Starts Acknowledged like a self-request; it still has to pass the
-    // Admin/Staff document verification and Director approval steps.
+    // single Admin/Director/Staff review-and-approval step.
     const txn = await Transaction.create(
       {
         borrowerId,
@@ -508,14 +508,16 @@ exports.createSelfRequest = async (req, res) => {
   await logStatusChange(created.id, req.user.id, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, 'Request submitted by borrower');
   await notifyBorrower(
     req.user.id,
-    `Your borrow request (Transaction #${created.id}) was submitted and is awaiting document review by SDPO staff.`,
+    `Your borrow request (Transaction #${created.id}) was submitted and is awaiting SDPO review and approval.`,
     'Request Submitted',
     `txn-${created.id}-submitted`
   );
-  // Admin/Staff review the documents first; the Director is notified only
-  // once the request actually reaches them (see review()).
+  // Single approval step (2026-10-02): Admin, Director, and Staff have
+  // identical access to review and approve a request, so all three are
+  // notified of a new submission at once — not just Admin/Staff first,
+  // with the Director notified later once the request is forwarded.
   await notifyRoles(
-    ['Admin', 'Staff'],
+    ['Admin', 'Director', 'Staff'],
     `New borrow request from ${[borrower.firstName, borrower.lastName].filter(Boolean).join(' ')} (Transaction #${created.id}) — submitted documents need review.`,
     'New Request',
     `txn-${created.id}-new-request`
@@ -563,12 +565,17 @@ exports.cancelSelfRequest = async (req, res) => {
   res.json({ success: true, data: serialize(await loadTransactionOr404(txn.id)) });
 };
 
-// Step 2 — Admin/Staff review of the borrower's submitted documents.
-//   accept     → documents verified; request proceeds to the Director
+// Step 2 — SDPO review of the borrower's submitted documents.
+//   accept     → documents verified and request approved, in one action
 //   correction → stays with the borrower to fix (status unchanged)
 //   reject     → request rejected, reserved stock released
-// A request can only reach the Director through 'accept', and 'accept'
-// requires every document the borrower's type needs to be on file.
+// 'accept' requires every document the borrower's type needs to be on file.
+// Single approval step (2026-10-02): checking the borrower's documents and
+// approving the request happen together, in one action, by whichever of the
+// three equally-privileged roles (Director, Property Custodian, or
+// Administrative Aide VI — Admin/Director/Staff) handles it. There is no
+// longer a separate "forward to the Director" stage — 'accept' takes the
+// transaction straight from Pending/Acknowledged to Approved.
 exports.review = async (req, res) => {
   const { action } = req.body;
   const remarks = req.body.remarks ? String(req.body.remarks).trim() : '';
@@ -593,11 +600,13 @@ exports.review = async (req, res) => {
         { missing }
       );
     }
-    nextStatus = STATUS.FOR_APPROVAL;
+    nextStatus = STATUS.APPROVED;
     await transition(txn, AWAITING_REVIEW, nextStatus, {
       ...reviewFields,
       documentsVerifiedBy: req.user.id,
-      documentsVerifiedDatetime: now
+      documentsVerifiedDatetime: now,
+      approvedBy: req.user.id,
+      approvalDatetime: now
     });
   } else if (action === 'reject') {
     nextStatus = STATUS.REJECTED;
@@ -615,49 +624,44 @@ exports.review = async (req, res) => {
     req.user.id,
     oldStatus,
     nextStatus,
-    action === 'accept' ? `Documents verified${remarks ? ': ' + remarks : ''}` : remarks || null
+    action === 'accept' ? `Documents verified and approved${remarks ? ': ' + remarks : ''}` : remarks || null
   );
 
   if (txn.borrower && txn.borrower.user) {
     const message =
       action === 'accept'
-        ? `Your submitted documents for Transaction #${txn.id} were verified. The request is now awaiting Director approval.`
+        ? `Your borrow request (Transaction #${txn.id}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`
         : action === 'reject'
           ? `Your borrow request (Transaction #${txn.id}) was rejected during review.${remarks ? ' Reason: ' + remarks : ''}`
           : `Your borrow request (Transaction #${txn.id}) needs correction before it can proceed.${remarks ? ' ' + remarks : ''}`;
     const key =
       action === 'accept'
-        ? `txn-${txn.id}-documents-verified`
+        ? `txn-${txn.id}-approved`
         : action === 'reject'
           ? `txn-${txn.id}-rejected`
           : `txn-${txn.id}-correction-${log && log.id ? log.id : now.getTime()}`;
-    await notifyBorrower(txn.borrower.user.id, message, action === 'reject' ? 'Rejection' : 'Review', key);
-  }
-  if (action === 'accept') {
-    const name = txn.borrower ? [txn.borrower.firstName, txn.borrower.lastName].filter(Boolean).join(' ') : 'a borrower';
-    await notifyRoles(
-      ['Director'],
-      `Transaction #${txn.id} from ${name} passed document verification and is awaiting your approval.`,
-      'Awaiting Approval',
-      `txn-${txn.id}-awaiting-approval`
-    );
+    await notifyBorrower(txn.borrower.user.id, message, action === 'reject' ? 'Rejection' : 'Approval', key);
   }
   res.json({ success: true, data: serialize(await loadTransactionOr404(txn.id)) });
 };
 
-// Step 3 — Director approval (Director/Admin only, enforced on the route).
+// Legacy fallback only (2026-10-02): no new request reaches 'For Approval'
+// under the single-approval workflow above — exports.review('accept') goes
+// straight to Approved. This stays only so a request that was already
+// sitting in the old two-step 'For Approval' status before this change can
+// still be resolved, equally, by any of the three roles (route: staffOnly).
 exports.approve = async (req, res) => {
   const txn = await loadTransactionOr404(req.params.id);
   assertStatus(txn, STATUS.FOR_APPROVAL);
   if (!txn.documentsVerifiedDatetime) {
-    throw httpError(409, 'Submitted documents must be verified by SDPO staff before the Director can approve this request', 'DOCUMENTS_NOT_VERIFIED');
+    throw httpError(409, 'Submitted documents must be verified before this request can be approved', 'DOCUMENTS_NOT_VERIFIED');
   }
   await transition(txn, [STATUS.FOR_APPROVAL], STATUS.APPROVED, { approvedBy: req.user.id, approvalDatetime: new Date() });
   await logStatusChange(txn.id, req.user.id, STATUS.FOR_APPROVAL, STATUS.APPROVED);
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
-      `Your borrow request (Transaction #${txn.id}) has been approved by the Director. Confirm receipt from your account when you pick up the equipment at the SDPO office.`,
+      `Your borrow request (Transaction #${txn.id}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`,
       'Approval',
       `txn-${txn.id}-approved`
     );
@@ -670,10 +674,6 @@ exports.reject = async (req, res) => {
   const txn = await loadTransactionOr404(req.params.id);
   const allowed = [...AWAITING_REVIEW, STATUS.FOR_APPROVAL];
   assertStatusIn(txn, allowed);
-  // Once a request reaches For Approval, only the Director (or Admin) decides.
-  if (txn.transactionStatus === STATUS.FOR_APPROVAL && !['Director', 'Admin'].includes(req.user.userRole)) {
-    throw httpError(403, 'Only a Director can reject a request that has reached the approval stage');
-  }
   const oldStatus = txn.transactionStatus;
   await sequelize.transaction(async (t) => {
     await transition(txn, [oldStatus], STATUS.REJECTED, {}, t);

@@ -264,7 +264,7 @@ describe('createSelfRequest — idempotent submission and notifications', () => 
     expect(notifyRoles).not.toHaveBeenCalled();
   });
 
-  test('stores the requestKey and notifies the borrower once and Admin/Staff once, with dedupe keys', async () => {
+  test('stores the requestKey and notifies the borrower once and Admin/Director/Staff once, with dedupe keys', async () => {
     successfulSubmission(71);
     await ctrl.createSelfRequest(selfReq([{ equipmentId: 1, quantity: 1 }], { requestKey: 'abcdef123456' }), mockRes());
 
@@ -272,7 +272,7 @@ describe('createSelfRequest — idempotent submission and notifications', () => 
     expect(notifyBorrower).toHaveBeenCalledTimes(1);
     expect(notifyBorrower).toHaveBeenCalledWith(9, expect.any(String), 'Request Submitted', 'txn-71-submitted');
     expect(notifyRoles).toHaveBeenCalledTimes(1);
-    expect(notifyRoles).toHaveBeenCalledWith(['Admin', 'Staff'], expect.any(String), 'New Request', 'txn-71-new-request');
+    expect(notifyRoles).toHaveBeenCalledWith(['Admin', 'Director', 'Staff'], expect.any(String), 'New Request', 'txn-71-new-request');
   });
 
   test('the return date/time is interpreted as Philippine Time', async () => {
@@ -313,7 +313,7 @@ describe('eligibility()', () => {
   });
 });
 
-describe('review() — Admin/Staff document verification gate', () => {
+describe('review() — single approval step (2026-10-02)', () => {
   function pendingTxn(overrides) {
     return stubFindByPkResult({
       transactionStatus: 'Acknowledged',
@@ -323,19 +323,38 @@ describe('review() — Admin/Staff document verification gate', () => {
     });
   }
 
-  test('accept verifies the documents, moves to For Approval, and notifies the Director', async () => {
+  test('accept verifies the documents and approves the request in one step, for any of the three equal roles', async () => {
     const txn = pendingTxn({ id: 13 });
     Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
 
     await ctrl.review({ params: { id: 13 }, user: { id: 3 }, body: { action: 'accept' } }, mockRes());
 
     expect(Transaction.update).toHaveBeenCalledWith(
-      expect.objectContaining({ transactionStatus: 'For Approval', documentsVerifiedBy: 3, documentsVerifiedDatetime: expect.any(Date) }),
+      expect.objectContaining({
+        transactionStatus: 'Approved',
+        documentsVerifiedBy: 3,
+        documentsVerifiedDatetime: expect.any(Date),
+        approvedBy: 3,
+        approvalDatetime: expect.any(Date)
+      }),
       { where: { id: 13, transactionStatus: { [Op.in]: ['Pending', 'Acknowledged'] } }, transaction: undefined }
     );
     expect(Item.update).not.toHaveBeenCalled(); // units stay Reserved through approval
-    expect(txn.transactionStatus).toBe('For Approval');
-    expect(notifyRoles).toHaveBeenCalledWith(['Director'], expect.any(String), 'Awaiting Approval', 'txn-13-awaiting-approval');
+    expect(txn.transactionStatus).toBe('Approved');
+    // No separate "awaiting Director approval" ping — there's no longer a
+    // second stage for a Director to be notified about.
+    expect(notifyRoles).not.toHaveBeenCalled();
+    expect(notifyBorrower).toHaveBeenCalledWith(40, expect.stringContaining('has been approved'), 'Approval', 'txn-13-approved');
+  });
+
+  test('any of the three equally-privileged roles (Admin, Director, Staff) can accept', async () => {
+    for (const userRole of ['Admin', 'Director', 'Staff']) {
+      jest.clearAllMocks();
+      const txn = pendingTxn({ id: 20 });
+      Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
+      await ctrl.review({ params: { id: 20 }, user: { id: 3, userRole }, body: { action: 'accept' } }, mockRes());
+      expect(txn.transactionStatus).toBe('Approved');
+    }
   });
 
   test('accept is refused when required documents are missing', async () => {
@@ -468,19 +487,18 @@ describe('reject() / cancelSelfRequest() release Reserved units back to stock', 
     expect(notifyBorrower).toHaveBeenCalledWith(40, expect.stringContaining('Missing valid ID'), 'Rejection', 'txn-14-rejected');
   });
 
-  test('reject() forbids Staff at the For Approval stage', async () => {
-    Transaction.findByPk.mockResolvedValueOnce(reservedTxn({ id: 15, transactionStatus: 'For Approval' }));
-    await expect(ctrl.reject({ params: { id: 15 }, user: { id: 3, userRole: 'Staff' }, body: {} }, mockRes())).rejects.toMatchObject({
-      statusCode: 403
-    });
-    expect(Item.update).not.toHaveBeenCalled();
-  });
-
-  test('reject() allows the Director at the For Approval stage', async () => {
-    const txn = reservedTxn({ id: 16, transactionStatus: 'For Approval' });
-    Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
-    await ctrl.reject({ params: { id: 16 }, user: { id: 3, userRole: 'Director' }, body: {} }, mockRes());
-    expect(txn.transactionStatus).toBe('Rejected');
+  // Single approval step (2026-10-02): the old restriction limiting a
+  // For-Approval-stage rejection to Director/Admin only is gone — all three
+  // equally-privileged roles (Admin, Director, Staff) can reject at any
+  // stage. ('For Approval' itself is now only reachable by a pre-existing
+  // legacy row, but the equal-access rule still applies to it.)
+  test('reject() allows any of the three equally-privileged roles at the For Approval stage', async () => {
+    for (const userRole of ['Admin', 'Director', 'Staff']) {
+      const txn = reservedTxn({ id: 16, transactionStatus: 'For Approval' });
+      Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
+      await ctrl.reject({ params: { id: 16 }, user: { id: 3, userRole }, body: {} }, mockRes());
+      expect(txn.transactionStatus).toBe('Rejected');
+    }
   });
 
   test('a duplicate reject never releases stock twice', async () => {

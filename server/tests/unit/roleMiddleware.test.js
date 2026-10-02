@@ -2,10 +2,10 @@
 
 // Unit tests for server/middlewares/roleMiddleware.js — previously at zero
 // coverage (High #3, 2026-09-08 system audit). This is the middleware
-// every role-gated route in the app is built on (Director-only approve/
-// reject, Admin-only equipment CRUD, etc.), so its edge cases are worth
-// pinning directly rather than only exercising it indirectly through
-// route-level tests elsewhere.
+// every role-gated route in the app is built on (Admin-only equipment CRUD,
+// the uniform Admin/Director/Staff gate on borrow review/approve/reject,
+// etc.), so its edge cases are worth pinning directly rather than only
+// exercising it indirectly through route-level tests elsewhere.
 
 const roleMiddleware = require('../../middlewares/roleMiddleware');
 

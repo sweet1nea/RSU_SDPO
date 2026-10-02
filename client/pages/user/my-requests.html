@@ -86,16 +86,18 @@
   <script>
     // Only the request/approval phase lives here — once equipment is Released
     // it moves to My Borrowings, and closed-out transactions move to History.
-    // A freshly submitted request starts life as 'Acknowledged' (not
-    // 'Pending' — that ENUM value is defensive/reserved and never actually
-    // assigned by the backend), then moves to 'For Approval' after staff
-    // review, before reaching Approved/Rejected — both need to be included
-    // here or a borrower's own in-flight request is invisible to them.
+    // Single approval step (2026-10-02): a freshly submitted request starts
+    // life as 'Acknowledged' (not 'Pending' — that ENUM value is
+    // defensive/reserved and never actually assigned by the backend) and
+    // goes straight to Approved/Rejected — document review and approval now
+    // happen together in one SDPO action. 'For Approval' is kept here only
+    // as a legacy fallback so a request that was already sitting in that
+    // status before the change still shows correctly to its borrower.
     const REQUEST_STATUSES=['Acknowledged','For Approval','Approved','Rejected','Cancelled'];
     const NOTE_BY_STATUS={
-      Pending:'Your request is awaiting SDPO staff review of your submitted documents.',
-      Acknowledged:'Your request is awaiting SDPO staff review of your submitted documents.',
-      'For Approval':'Your documents were verified. The request is awaiting Director approval.',
+      Pending:'Your request is awaiting SDPO review and approval.',
+      Acknowledged:'Your request is awaiting SDPO review and approval.',
+      'For Approval':'Your documents were verified. The request is awaiting approval.',
       Approved:'Approved. Please present your student ID when claiming the equipment.',
       Cancelled:'This request was cancelled.'
     };
@@ -133,8 +135,9 @@
     let active='All',term='';
     const ICONS={Pending:'◷',Acknowledged:'◷','For Approval':'◷',Approved:'✓',Rejected:'⊗',Cancelled:'⊘',Completed:'✓'};
     const icon=new Proxy(ICONS,{get:(o,k)=>o[k]||'•'});
-    // Borrower-facing label: 'Acknowledged' means submitted, awaiting document review.
-    const statusLabel=s=>s==='Acknowledged'?'Awaiting Document Review':s==='For Approval'?'Awaiting Director Approval':s;
+    // Borrower-facing label: 'Acknowledged' means submitted, awaiting the
+    // single SDPO review-and-approval step. 'For Approval' is legacy-only.
+    const statusLabel=s=>s==='Acknowledged'?'Awaiting Approval':s==='For Approval'?'Awaiting Approval':s;
     const classFor=s=>s.toLowerCase().replace(/\s+/g,'-');
     const countFor=s=>s==='All'?requests.length:requests.filter(r=>r.status===s).length;
 

@@ -1,17 +1,19 @@
 'use strict';
 
 // Verifies server/helpers/notify.js: one action produces exactly ONE
-// notification row per recipient (the in-app 'System' row), email/SMS are
-// delivery channels for that same notification (no extra rows), and a
+// notification row per recipient (the in-app 'System' row), email is a
+// delivery channel for that same notification (no extra rows), and a
 // dedupe key makes the same event idempotent per recipient.
+//
+// SMS was removed (2026-10-02) per the manuscript's confirmed notification
+// channels (in-app + email only) — the old SMS delivery assertions were
+// removed from these tests along with the smsService.js code they covered.
 
 jest.mock('../../models', () => require('../fixtures/mockModels')());
 jest.mock('../../services/notificationService/emailService');
-jest.mock('../../services/notificationService/smsService');
 
 const { Notification, User } = require('../../models');
 const { sendEmail } = require('../../services/notificationService/emailService');
-const { sendSms } = require('../../services/notificationService/smsService');
 const { notifyBorrower, notifyStaff, notifyRoles } = require('../../helpers/notify');
 
 function makeUser(overrides = {}) {
@@ -33,7 +35,6 @@ describe('helpers/notify.js', () => {
     Notification.create.mockResolvedValue({ id: 100 });
     Notification.findOrCreate = jest.fn();
     sendEmail.mockResolvedValue({ success: true });
-    sendSms.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -53,12 +54,11 @@ describe('helpers/notify.js', () => {
       expect(created).toEqual({ id: 100 });
     });
 
-    test('email and SMS are delivered for the same notification without writing extra rows', async () => {
+    test('email is delivered for the same notification without writing extra rows', async () => {
       User.findByPk.mockResolvedValue(makeUser());
       await notifyBorrower(1, 'Request approved', 'Approval');
 
       expect(sendEmail).toHaveBeenCalledWith('user@example.com', 'RSU SDPO Notification: Approval', 'Request approved');
-      expect(sendSms).toHaveBeenCalledWith('09171234567', 'Request approved');
       expect(Notification.create).toHaveBeenCalledTimes(1);
       expect(Notification.bulkCreate).not.toHaveBeenCalled();
     });
@@ -66,18 +66,10 @@ describe('helpers/notify.js', () => {
     test('channel failures are logged, never thrown, and never add rows', async () => {
       User.findByPk.mockResolvedValue(makeUser());
       sendEmail.mockResolvedValue({ success: false, error: 'smtp down' });
-      sendSms.mockResolvedValue({ success: false, error: 'sms down' });
 
       await expect(notifyBorrower(1, 'm', 'Approval')).resolves.toEqual({ id: 100 });
       expect(Notification.create).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalled();
-    });
-
-    test('skips SMS when the user has no contact number', async () => {
-      User.findByPk.mockResolvedValue(makeUser({ contactNumber: null }));
-      await notifyBorrower(1, 'm', 'Approval');
-      expect(sendSms).not.toHaveBeenCalled();
-      expect(sendEmail).toHaveBeenCalledTimes(1);
     });
 
     test('with a dedupe key, a repeated event finds the existing row and sends nothing again', async () => {
@@ -96,7 +88,6 @@ describe('helpers/notify.js', () => {
       expect(second).toEqual({ id: 7 });
       expect(Notification.create).not.toHaveBeenCalled();
       expect(sendEmail).toHaveBeenCalledTimes(1);
-      expect(sendSms).toHaveBeenCalledTimes(1);
     });
 
     test('the in-app write still succeeds when the user lookup for email/SMS fails', async () => {

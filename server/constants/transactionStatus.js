@@ -3,14 +3,21 @@
 // Borrowing workflow (approved RSU SDPO process):
 //
 //   Borrower submits request ............ Acknowledged
-//   Admin/Staff reviews + verifies docs . For Approval    (or Rejected / returned for correction)
-//   Director approves ................... Approved        (or Rejected)
+//   SDPO reviews docs + approves ........ Approved   (single step, equally by
+//                                          Director/Property Custodian/Admin
+//                                          Aide VI — or Rejected / returned
+//                                          for correction)
 //   Equipment released .................. Released        (→ Overdue if past due)
 //   Equipment returned .................. Completed       (or For Resolution if damaged/lost)
 //   Replacement workflow ................ Replacement → Resolved → Completed
 //
 // 'Pending', 'For Review' and 'Returned' remain in the database enum for
-// historical rows but are never assigned by current code.
+// historical rows but are never assigned by current code. 'For Approval' was
+// an intermediate status under the old two-step review-then-approve
+// workflow (removed 2026-10-02 in favor of single-step approval); it is kept
+// in the enum only so any pre-existing row in that status can still be
+// resolved via the legacy exports.approve() fallback — no new transaction is
+// assigned this status.
 const STATUS = Object.freeze({
   PENDING: 'Pending',
   ACKNOWLEDGED: 'Acknowledged',

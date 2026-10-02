@@ -93,11 +93,13 @@ const TXN_INCLUDE_FOR_REPORTS = [
   }
 ];
 
-// Statuses a transaction only ever reaches once the Director has actually
-// approved it (transactionStatus is set to 'Approved' in exactly one place,
-// borrow.controller.js#approve) or moved on from there. Medium #7 from the
-// 2026-09-08 system audit: the Borrowing Report's "Approved Requests" stat
-// used to be `transactionStatus !== 'Pending'`, which also counted
+// Statuses a transaction only ever reaches once it has actually been
+// approved (transactionStatus is set to 'Approved' by borrow.controller.js's
+// exports.review('accept') — the single approval step, equally performed by
+// the Director, Property Custodian, or Administrative Aide VI — or by the
+// legacy exports.approve() fallback) or moved on from there. Medium #7 from
+// the 2026-09-08 system audit: the Borrowing Report's "Approved Requests"
+// stat used to be `transactionStatus !== 'Pending'`, which also counted
 // Acknowledged/For Review/For Approval (not actually approved yet) and,
 // worse, Rejected and Cancelled (explicitly *not* approved) — inflating the
 // real approved count with everything that was ever submitted.

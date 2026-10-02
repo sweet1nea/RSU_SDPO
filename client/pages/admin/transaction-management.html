@@ -205,9 +205,12 @@
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const cls=s=>s.toLowerCase().replace(/\s+/g,'-'); let current=null;
     const myRole=()=>{try{return(currentUser()||{}).userRole}catch(e){return null}};
-    const isDirector=()=>['Admin','Director'].includes(myRole());
-    // Document review/verification is Admin/Staff work (server: borrow.routes.js reviewerOnly).
-    const isReviewer=()=>['Admin','Staff'].includes(myRole());
+    // Single approval workflow (2026-10-02): the Director, Property Custodian
+    // (Admin), and Administrative Aide VI (Staff) have identical access to
+    // every action on a transaction — there is no separate review-then-
+    // approve split anymore (server: borrow.routes.js staffOnly, applied
+    // uniformly to every borrow route). One role check for all three.
+    const isStaffRole=()=>['Admin','Director','Staff'].includes(myRole());
     // Guards every workflow action against double-clicks: one request at a time.
     let actionBusy=false;
     async function runAction(fn){
@@ -236,7 +239,7 @@
       }
     }
 
-    const ACTION_LABEL={Pending:isReviewer()?'Review Documents':'',Acknowledged:isReviewer()?'Review Documents':'','For Approval':isDirector()?'Approve':'',Approved:'Release',Released:'Return',Overdue:'Return','For Resolution':'Resolve',Replacement:'Resolve',Resolved:'Complete'};
+    const ACTION_LABEL={Pending:isStaffRole()?'Approve Request':'',Acknowledged:isStaffRole()?'Approve Request':'','For Approval':isStaffRole()?'Approve':'',Approved:'Release',Released:'Return',Overdue:'Return','For Resolution':'Resolve',Replacement:'Resolve',Resolved:'Complete'};
     function render(rows=txns){document.getElementById('shown').textContent=rows.length;document.getElementById('transactions').innerHTML=rows.map(t=>{const label=ACTION_LABEL[t.status];return `<tr><td><span class="txn-id">${esc(t.id)}</span></td><td>${esc(t.date)}<span class="sub">${esc(t.time)}</span></td><td><b>${esc(t.name)}</b><span class="sub">${esc(t.bsf)}</span></td><td><span class="badge type">${esc(t.type)}</span></td><td>${esc(t.college)}</td><td class="purpose">${esc(t.purpose)}</td><td>${t.items.length}</td><td>${esc(t.due)}</td><td><span class="badge ${cls(t.status)}">${esc(t.status)}</span></td><td>${esc(t.review)}</td><td>${esc(t.approve)}</td><td><div class="actions"><button class="link-btn" onclick="openDrawer(${t.dbId})">View</button>${label?`<button class="link-btn primary" onclick="openDrawer(${t.dbId})">${label}</button>`:''}</div></td></tr>`}).join('')};
     function section(title,body){return `<section class="section"><div class="section-title">${title}</div><div class="section-body">${body}</div></section>`}
     // Named timelineEvent, not event — a top-level `function event(...)`
@@ -396,27 +399,38 @@
     // transaction that was actually clicked, even when the table is filtered/sorted.
     function drawerActionsHtml(t){
       if(['Pending','Acknowledged'].includes(t.status)){
-        // Step 2 — Admin/Staff document review. The Director only sees the
-        // request once documents are verified (For Approval).
-        if(!isReviewer())return '<span class="sub">Awaiting Admin/Staff document verification.</span>';
-        return '<button class="btn green" id="verifyDocsBtn" onclick="reviewTxn(\'accept\')">Verify Documents &amp; Forward to Director</button><button class="btn dark" onclick="reviewTxn(\'correction\')">Return for Correction</button><button class="btn red" onclick="reviewTxn(\'reject\')">Reject</button>';
+        // Single approval step — checking documents and approving happen
+        // together in one action, equally available to the Director,
+        // Property Custodian, and Administrative Aide VI (Admin/Director/
+        // Staff). No separate review-then-approve stage anymore.
+        if(!isStaffRole())return '<span class="sub">Awaiting SDPO review.</span>';
+        return '<button class="btn green" id="verifyDocsBtn" onclick="reviewTxn(\'accept\')">Approve Request</button><button class="btn dark" onclick="reviewTxn(\'correction\')">Return for Correction</button><button class="btn red" onclick="reviewTxn(\'reject\')">Reject</button>';
       }
       if(t.status==='For Approval'){
-        return isDirector()?'<button class="btn green" onclick="approveTxn()">Approve</button><button class="btn red" onclick="rejectTxn()">Reject</button>':'<span class="sub">Documents verified — awaiting Director approval.</span>';
+        // Legacy fallback only — no new transaction reaches this status
+        // under the single-approval workflow. Kept so any request that was
+        // already sitting here before the change can still be resolved, by
+        // any of the three equally-privileged roles.
+        return isStaffRole()?'<button class="btn green" onclick="approveTxn()">Approve</button><button class="btn red" onclick="rejectTxn()">Reject</button>':'<span class="sub">Awaiting approval.</span>';
       }
-      if(t.status==='Approved')return isReviewer()?'<button class="btn dark" onclick="showTab(\'workflow\')">Release Equipment</button>':'<span class="sub">Approved — awaiting release by SDPO staff.</span>';
-      if(['Released','Overdue'].includes(t.status))return isReviewer()?'<button class="btn dark" onclick="showTab(\'workflow\')">Return Equipment</button>':'';
-      if(['For Resolution','Replacement'].includes(t.status))return isReviewer()?'<button class="btn dark" onclick="showTab(\'workflow\')">Manage Resolution</button>':'';
-      if(t.status==='Resolved')return isReviewer()?'<button class="btn green" onclick="completeTxn()">Mark Complete</button>':'';
+      if(t.status==='Approved')return isStaffRole()?'<button class="btn dark" onclick="showTab(\'workflow\')">Release Equipment</button>':'<span class="sub">Approved — awaiting release by SDPO staff.</span>';
+      if(['Released','Overdue'].includes(t.status))return isStaffRole()?'<button class="btn dark" onclick="showTab(\'workflow\')">Return Equipment</button>':'';
+      if(['For Resolution','Replacement'].includes(t.status))return isStaffRole()?'<button class="btn dark" onclick="showTab(\'workflow\')">Manage Resolution</button>':'';
+      if(t.status==='Resolved')return isStaffRole()?'<button class="btn green" onclick="completeTxn()">Mark Complete</button>':'';
       return '';
     }
     function workflowTimelineHtml(t){
-      const reviewed=!['Pending','Acknowledged'].includes(t.status);
+      // Single approval step (2026-10-02): checking documents and approving
+      // happen together in one action by one person, so the timeline shows
+      // one "Approved" step instead of separate Admin/Staff-review-then-
+      // Director-approve rows. (A transaction that reached the legacy "For
+      // Approval" status before this change still shows correctly as
+      // "awaiting approval" via the same `approved` check below.)
       const approved=!['Pending','Acknowledged','For Review','For Approval'].includes(t.status)&&t.status!=='Rejected';
       const releasedOnward=['Released','Overdue','For Resolution','Replacement','Resolved','Completed'].includes(t.status);
       const returnedOnward=['For Resolution','Replacement','Resolved','Completed'].includes(t.status)||t.status==='Completed';
       const ts=t.timestamps||{};const at=v=>v?' · '+esc(formatPHDateTime(v)):'';
-      return `<div class="timeline">${timelineEvent('Request Submitted',esc(t.date)+' · '+esc(t.time))}${timelineEvent('Documents Verified (Admin/Staff)',t.documentsVerified?'Verified by '+esc(t.documentsVerifiedBy||t.review)+at(ts.documentsVerified):t.status==='Rejected'&&!approved?'Rejected':'Awaiting document review',t.documentsVerified||reviewed)}${timelineEvent('Approved (Director)',t.status==='Rejected'?'Rejected':approved?'Approved by '+esc(t.approve)+at(ts.approved):'Awaiting approval',approved)}${timelineEvent('Released',releasedOnward?'Equipment released'+at(ts.released):'',releasedOnward)}${timelineEvent('Returned',returnedOnward?'Equipment returned'+at(ts.returned):'',returnedOnward)}${timelineEvent('Completed',t.status==='Completed'?'Transaction closed':'',t.status==='Completed')}</div>`;
+      return `<div class="timeline">${timelineEvent('Request Submitted',esc(t.date)+' · '+esc(t.time))}${timelineEvent('Approved',t.status==='Rejected'?'Rejected':approved?'Approved by '+esc(t.approve)+at(ts.approved):'Awaiting approval',approved)}${timelineEvent('Released',releasedOnward?'Equipment released'+at(ts.released):'',releasedOnward)}${timelineEvent('Returned',returnedOnward?'Equipment returned'+at(ts.returned):'',returnedOnward)}${timelineEvent('Completed',t.status==='Completed'?'Transaction closed':'',t.status==='Completed')}</div>`;
     }
     function openDrawer(dbId){current=txns.find(t=>t.dbId===dbId);if(!current)return;const t=current;document.getElementById('drawerBadges').innerHTML=`<span class="badge ${cls(t.status)}">${esc(t.id)}</span> <span class="badge ${cls(t.status)}">${esc(t.status)}</span> <span class="badge type">${esc(t.type)}</span>`;document.getElementById('drawerName').textContent=t.name;document.getElementById('drawerCollege').textContent=`${t.college} · ${t.bsf}`;document.getElementById('drawerActions').innerHTML=drawerActionsHtml(t);
       document.getElementById('overview').innerHTML=section('Borrower Information',`<div class="info-grid"><div class="info"><label>Transaction No.</label><div>${esc(t.id)}</div></div><div class="info"><label>BSF Number</label><div>${esc(t.bsf)}</div></div><div class="info"><label>Borrower Name</label><div>${esc(t.name)}</div></div><div class="info"><label>Borrower Type</label><div>${esc(t.type)}</div></div><div class="info"><label>College / Unit</label><div>${esc(t.college)}</div></div><div class="info"><label>Email</label><div>${esc(t.email)}</div></div></div>`)+section('Request Details',`<div class="info-grid"><div class="info"><label>Request Date (PHT)</label><div>${esc(t.date)} ${esc(t.time)}</div></div><div class="info"><label>Expected Return (PHT)</label><div>${esc(t.due)} ${esc(t.dueTime||'')}</div></div><div class="info" style="grid-column:1/-1"><label>Purpose</label><div>${esc(t.purpose)}</div></div></div>`)+section(`Equipment Requested · ${t.items.length} items`,equipmentDetails(t))+documentsSection(t);
@@ -453,7 +467,7 @@
     document.querySelectorAll('.tab').forEach(x=>x.addEventListener('click',()=>showTab(x.dataset.tab)));document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeDrawer()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
 
     async function reviewTxn(action){
-      const labels={accept:'Verify documents and forward to the Director',correction:'Return for Correction',reject:'Reject'};
+      const labels={accept:'Approve this request',correction:'Return for Correction',reject:'Reject'};
       const remarks=action!=='accept'?(prompt('Remarks (optional):')||''):'';
       if(!confirm(`${labels[action]} — transaction ${current.id}?`))return;
       await runAction(async()=>{
