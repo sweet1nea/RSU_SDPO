@@ -45,11 +45,12 @@ function httpError(statusCode, message, code, details) {
 //   > 5 available  = Green  = up to 2 units may be borrowed per request
 //   4-5 available  = Yellow = only 1 unit may be borrowed per request
 //   1-3 available  = Red    = borrowing not allowed
-// plus a per-equipment minimum-stock floor at 25% of total quantity
-// (project-leader decision, 2026-09-12). Enforced for self-service requests;
-// staff-created walk-in transactions are left to staff judgment per spec.
+// plus a per-equipment minimum-stock floor at 15% of total quantity
+// (project-leader decision, 2026-09-12; lowered from 25% to 15% on
+// 2026-10-02). Enforced for self-service requests; staff-created walk-in
+// transactions are left to staff judgment per spec.
 function lowStockFloor(totalQuantity) {
-  return Math.ceil(totalQuantity * 0.25);
+  return Math.ceil(totalQuantity * 0.15);
 }
 
 function maxBorrowableUnits(availableQuantity, totalQuantity) {
@@ -449,7 +450,7 @@ exports.createSelfRequest = async (req, res) => {
           throw httpError(
             409,
             atFloor
-              ? `Warning: "${equipment.equipmentName}" can't be borrowed at this moment — only ${equipment.availableQuantity} of ${equipment.totalQuantity} left, at or below the SDPO's 25% minimum-stock threshold.`
+              ? `Warning: "${equipment.equipmentName}" can't be borrowed at this moment — only ${equipment.availableQuantity} of ${equipment.totalQuantity} left, at or below the SDPO's 15% minimum-stock threshold.`
               : cap === 0
                 ? `"${equipment.equipmentName}" is low in stock (${equipment.availableQuantity} available) and can't be borrowed right now under the SDPO's minimum-stock guideline.`
                 : `Only ${cap} unit(s) of "${equipment.equipmentName}" may be borrowed per request while stock is at ${equipment.availableQuantity} available (SDPO minimum-stock guideline).`

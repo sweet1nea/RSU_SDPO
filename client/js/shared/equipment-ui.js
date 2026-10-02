@@ -86,10 +86,10 @@
     return { available: 'In Stock', limited: 'Low Stock', low: 'Critical Stock' }[stockLevel(available)];
   }
 
-  // Server rule mirror: per-request cap incl. the 25% minimum-stock floor.
+  // Server rule mirror: per-request cap incl. the 15% minimum-stock floor.
   function maxBorrowableUnits(available, total) {
     var cap = available > 5 ? 2 : available >= 4 ? 1 : 0;
-    if (total > 0 && available <= Math.ceil(total * 0.25)) cap = 0;
+    if (total > 0 && available <= Math.ceil(total * 0.15)) cap = 0;
     return cap;
   }
 

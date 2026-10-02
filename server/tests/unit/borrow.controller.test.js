@@ -2,7 +2,7 @@
 
 // Verifies server/controllers/borrow.controller.js — the request → document
 // verification → Director approval → release workflow:
-//   - Green/Yellow/Red availability caps + 25% minimum-stock floor
+//   - Green/Yellow/Red availability caps + 15% minimum-stock floor
 //   - units Reserved at submission, released back on Rejected/Cancelled
 //   - flagged-borrower / pending-replacement / late-return restrictions,
 //     enforced server-side before anything is created
@@ -141,12 +141,12 @@ describe('createSelfRequest — Green/Yellow/Red availability-threshold caps', (
   });
 });
 
-describe('createSelfRequest — 25%-of-total minimum-stock floor', () => {
-  test('blocks borrowing at the 25%-of-total floor, even where the Yellow band alone would allow 1 unit', async () => {
-    Equipment.findByPk.mockResolvedValueOnce({ id: 1, equipmentName: 'Cones', availableQuantity: 5, totalQuantity: 20 });
+describe('createSelfRequest — 15%-of-total minimum-stock floor', () => {
+  test('blocks borrowing at the 15%-of-total floor, even where the Yellow band alone would allow 1 unit', async () => {
+    Equipment.findByPk.mockResolvedValueOnce({ id: 1, equipmentName: 'Cones', availableQuantity: 5, totalQuantity: 30 });
     await expect(ctrl.createSelfRequest(selfReq([{ equipmentId: 1, quantity: 1 }]), mockRes())).rejects.toMatchObject({
       statusCode: 409,
-      message: expect.stringMatching(/25% minimum-stock threshold/)
+      message: expect.stringMatching(/15% minimum-stock threshold/)
     });
     expect(Item.update).not.toHaveBeenCalled();
   });
@@ -166,7 +166,12 @@ describe('createSelfRequest — 25%-of-total minimum-stock floor', () => {
   });
 
   test('rounds the floor up (ceil)', async () => {
-    Equipment.findByPk.mockResolvedValueOnce({ id: 1, equipmentName: 'Rackets', availableQuantity: 3, totalQuantity: 10 });
+    // totalQuantity 21 -> 21*0.15 = 3.15, which only blocks at availableQuantity
+    // 4 if the floor is rounded UP to 4 (ceil). A floor() implementation would
+    // give 3 and let this one through. availableQuantity 4 also sits in the
+    // Yellow band (cap 1), not the fixed Red band, so this isolates the floor's
+    // own rounding behavior from the fixed-band cap.
+    Equipment.findByPk.mockResolvedValueOnce({ id: 1, equipmentName: 'Rackets', availableQuantity: 4, totalQuantity: 21 });
     await expect(ctrl.createSelfRequest(selfReq([{ equipmentId: 1, quantity: 1 }]), mockRes())).rejects.toMatchObject({ statusCode: 409 });
   });
 
