@@ -657,7 +657,7 @@ exports.approve = async (req, res) => {
     throw httpError(409, 'Submitted documents must be verified before this request can be approved', 'DOCUMENTS_NOT_VERIFIED');
   }
   await transition(txn, [STATUS.FOR_APPROVAL], STATUS.APPROVED, { approvedBy: req.user.id, approvalDatetime: new Date() });
-  await logStatusChange(txn.id, req.user.id, STATUS.FOR_APPROVAL, STATUS.APPROVED);
+  await logStatusChange(txn.id, req.user.id, STATUS.FOR_APPROVAL, STATUS.APPROVED, 'Request approved');
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
@@ -735,7 +735,13 @@ exports.release = async (req, res) => {
     }
   });
 
-  await logStatusChange(txn.id, req.user.id, STATUS.APPROVED, STATUS.RELEASED);
+  await logStatusChange(
+    txn.id,
+    req.user.id,
+    STATUS.APPROVED,
+    STATUS.RELEASED,
+    `Equipment released: ${units.map((i) => i.itemCode).join(', ')}`
+  );
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
@@ -753,7 +759,7 @@ exports.complete = async (req, res) => {
   const txn = await loadTransactionOr404(req.params.id);
   assertStatus(txn, STATUS.RESOLVED);
   await transition(txn, [STATUS.RESOLVED], STATUS.COMPLETED);
-  await logStatusChange(txn.id, req.user.id, STATUS.RESOLVED, STATUS.COMPLETED);
+  await logStatusChange(txn.id, req.user.id, STATUS.RESOLVED, STATUS.COMPLETED, 'Transaction closed after replacement resolution');
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(txn.borrower.user.id, `Transaction #${txn.id} has been marked Completed.`, 'Completed', `txn-${txn.id}-completed`);
   }
