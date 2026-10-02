@@ -237,7 +237,11 @@ function serialize(t) {
       code: d.item.itemCode,
       legacyCode: d.item.legacyItemCode || null,
       equipmentId: d.item.equipmentId,
-      equipmentCode: formatEquipmentCode(d.item.equipmentId),
+      equipmentCode: formatEquipmentCode(
+        d.item.equipment.category ? d.item.equipment.category.categoryName : null,
+        d.item.equipment.equipmentName,
+        d.item.equipmentId
+      ),
       name: d.item.equipment.equipmentName,
       category: d.item.equipment.category ? d.item.equipment.category.categoryName : null,
       photoUrl: d.item.equipment.photoPath

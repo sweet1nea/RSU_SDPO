@@ -571,7 +571,7 @@ describe('serialize()', () => {
     Transaction.findAll.mockResolvedValueOnce([txn]);
     const res = mockRes();
     await ctrl.list({}, res);
-    expect(res.json.mock.calls[0][0].data[0].items[0]).toMatchObject({ code: 'EQ-005-002', equipmentId: 5, equipmentCode: 'EQ-005' });
+    expect(res.json.mock.calls[0][0].data[0].items[0]).toMatchObject({ code: 'EQ-005-002', equipmentId: 5, equipmentCode: 'VV-05' });
     expect(res.json.mock.calls[0][0].data[0]).not.toHaveProperty('fees');
   });
 });

@@ -389,7 +389,7 @@
       '<span class="chip chip--neutral">' + escapeHtml(item.category) + "</span>";
     detailsDescriptionWrap.textContent = item.description || "—";
 
-    // Unit QR codes all start with this equipment's ID (e.g. EQ-005-001).
+    // Unit QR codes all start with this equipment's code (e.g. VVB-48-01).
     detailsQrWrap.textContent = item.itemCodes.length
       ? item.itemCodes.length + " unit(s) — " + item.itemCodes.join(", ")
       : "No units registered";

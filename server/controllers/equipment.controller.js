@@ -36,7 +36,7 @@ function serialize(equipment) {
   const counts = items ? statusCounts(items) : null;
   return {
     id: equipment.id,
-    equipmentCode: formatEquipmentCode(equipment.id),
+    equipmentCode: formatEquipmentCode(equipment.category ? equipment.category.categoryName : null, equipment.equipmentName, equipment.id),
     equipmentName: equipment.equipmentName,
     categoryId: equipment.categoryId,
     category: equipment.category ? { id: equipment.category.id, categoryName: equipment.category.categoryName } : null,
@@ -79,15 +79,25 @@ function parseQuantity(value) {
 
 // Creates `count` new Available units for an equipment, continuing its
 // unit sequence. Each unit's code is the QR payload for that unit.
-async function createUnits(equipmentId, count, t) {
+//
+// `equipment` only needs to carry the fields the code's letter prefix is
+// built from — { id, equipmentName, category? } — not a full model
+// instance. Callers that already have the row loaded (with its category)
+// pass it straight through; callers that only have an id/categoryId look
+// up just the category name first, so this never re-fetches the equipment
+// row itself (which some callers hold under a row lock — see
+// exports.update and qr.controller.js#generate).
+async function createUnits(equipment, count, t) {
   if (count <= 0) return [];
+  const equipmentId = equipment.id;
+  const categoryName = equipment.category ? equipment.category.categoryName : null;
   const existing = await Item.findAll({ where: { equipmentId }, attributes: ['itemCode'], transaction: t });
   const start = maxSequence(equipmentId, existing.map((i) => i.itemCode));
   const rows = [];
   for (let i = 1; i <= count; i += 1) {
     rows.push({
       equipmentId,
-      itemCode: formatItemCode(equipmentId, start + i),
+      itemCode: formatItemCode(categoryName, equipment.equipmentName, equipmentId, start + i),
       itemCondition: 'Good',
       availabilityStatus: 'Available',
       engravingStatus: 'Not Engraved'
@@ -149,7 +159,7 @@ exports.create = async (req, res) => {
       },
       { transaction: t }
     );
-    await createUnits(equipment.id, totalQuantity, t);
+    await createUnits({ id: equipment.id, equipmentName, category }, totalQuantity, t);
     return equipment;
   });
 
@@ -189,8 +199,13 @@ exports.update = async (req, res) => {
       const delta = totalQuantity - equipment.totalQuantity;
       if (delta > 0) {
         // More stock: register the additional units right away so they're
-        // immediately borrowable.
-        await createUnits(equipment.id, delta, t);
+        // immediately borrowable. The equipment row itself was fetched
+        // above under a row lock (FOR UPDATE) without its category
+        // association — joining Category onto a locked row isn't safe in
+        // Postgres, so the category name is looked up on its own here,
+        // only when it's actually needed for the new units' codes.
+        const category = equipment.categoryId ? await Category.findByPk(equipment.categoryId, { transaction: t }) : null;
+        await createUnits({ id: equipment.id, equipmentName: equipment.equipmentName, category }, delta, t);
       } else {
         // Less stock. Some older records carry non-serviceable stock in their
         // total with no unit record behind it (see migration 023); that part

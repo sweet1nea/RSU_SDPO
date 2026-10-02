@@ -6,6 +6,8 @@ const { formatEquipmentCode } = require('../helpers/equipmentCode');
 const { createUnits } = require('./equipment.controller');
 
 function serializeItem(item) {
+  const equipmentName = item.equipment ? item.equipment.equipmentName : null;
+  const category = item.equipment && item.equipment.category ? item.equipment.category.categoryName : null;
   return {
     id: item.id,
     code: item.itemCode,
@@ -15,9 +17,9 @@ function serializeItem(item) {
     engravingStatus: item.engravingStatus,
     createdAt: item.createdAt,
     equipmentId: item.equipmentId,
-    equipmentCode: formatEquipmentCode(item.equipmentId),
-    equipmentName: item.equipment ? item.equipment.equipmentName : null,
-    category: item.equipment && item.equipment.category ? item.equipment.category.categoryName : null
+    equipmentCode: formatEquipmentCode(category, equipmentName, item.equipmentId),
+    equipmentName,
+    category
   };
 }
 
@@ -68,7 +70,10 @@ exports.generate = async (req, res) => {
       throw err;
     }
 
-    const created = await createUnits(equipment.id, qty, t);
+    // Same locked-row-plus-separate-category-lookup reasoning as
+    // equipment.controller.js#update — see the comment there.
+    const category = equipment.categoryId ? await Category.findByPk(equipment.categoryId, { transaction: t }) : null;
+    const created = await createUnits({ id: equipment.id, equipmentName: equipment.equipmentName, category }, qty, t);
     // New units are Available, so they count toward available stock.
     await Equipment.increment('availableQuantity', { by: qty, where: { id: equipment.id }, transaction: t });
     return created.map((i) => i.id);
@@ -132,7 +137,7 @@ exports.lookup = async (req, res) => {
       code: item.itemCode,
       scannedCode: String(req.params.itemCode),
       equipmentId: item.equipmentId,
-      equipmentCode: formatEquipmentCode(item.equipmentId),
+      equipmentCode: formatEquipmentCode(item.equipment.category ? item.equipment.category.categoryName : null, item.equipment.equipmentName, item.equipmentId),
       name: item.equipment.equipmentName,
       category: item.equipment.category ? item.equipment.category.categoryName : null,
       condition: item.itemCondition,

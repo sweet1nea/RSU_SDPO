@@ -33,13 +33,26 @@ beforeEach(() => {
 });
 
 describe('helpers/equipmentCode.js', () => {
-  test('Equipment ID and item codes share the same prefix', () => {
-    expect(formatEquipmentCode(5)).toBe('EQ-005');
-    expect(formatItemCode(5, 1)).toBe('EQ-005-001');
-    expect(formatItemCode(1234, 12)).toBe('EQ-1234-012');
-    expect(parseItemCode('EQ-005-001')).toEqual({ equipmentId: 5, sequence: 1 });
-    expect(parseItemCode('BSK-5-001')).toBeNull();
-    expect(maxSequence(5, ['EQ-005-001', 'EQ-005-007', 'EQ-006-009', 'BSK-5-010'])).toBe(7);
+  test('Equipment Code and Item Code combine a category/name letter prefix with the Equipment ID', () => {
+    expect(formatEquipmentCode('Volleyball', 'Volleyball Ball', 48)).toBe('VVB-48');
+    expect(formatItemCode('Volleyball', 'Volleyball Ball', 48, 1)).toBe('VVB-48-01');
+    expect(formatItemCode('Badminton', 'Badminton Net', 4, 12)).toBe('BBN-04-12');
+  });
+
+  test('falls back to "EQ" when category and equipment name are both unavailable', () => {
+    expect(formatEquipmentCode(null, null, 5)).toBe('EQ-05');
+    expect(formatItemCode(undefined, '', 5, 1)).toBe('EQ-05-01');
+  });
+
+  test('parseItemCode reads the Equipment ID and sequence out of any 3-part code, current or superseded', () => {
+    expect(parseItemCode('VVB-48-01')).toEqual({ equipmentId: 48, sequence: 1 });
+    expect(parseItemCode('EQ-005-001')).toEqual({ equipmentId: 5, sequence: 1 }); // superseded format, still readable
+    expect(parseItemCode('not-a-code')).toBeNull();
+    expect(parseItemCode('too-many-dash-parts-here')).toBeNull();
+  });
+
+  test('maxSequence finds the highest existing unit sequence for an equipment across code formats', () => {
+    expect(maxSequence(48, ['VVB-48-01', 'VVB-48-07', 'VVB-49-09', 'EQ-048-002'])).toBe(7);
   });
 });
 
@@ -53,7 +66,11 @@ describe('POST /api/equipment (create)', () => {
       totalQuantity: 8,
       availableQuantity: 8,
       category: { id: 2, categoryName: 'Volleyball' },
-      items: Array.from({ length: 8 }, (_, i) => ({ id: i, itemCode: formatItemCode(5, i + 1), availabilityStatus: 'Available' }))
+      items: Array.from({ length: 8 }, (_, i) => ({
+        id: i,
+        itemCode: formatItemCode('Volleyball', 'Mikasa V200W', 5, i + 1),
+        availabilityStatus: 'Available'
+      }))
     });
     const res = mockRes();
 
@@ -65,12 +82,12 @@ describe('POST /api/equipment (create)', () => {
     );
     const units = Item.bulkCreate.mock.calls[0][0];
     expect(units).toHaveLength(8);
-    expect(units[0]).toMatchObject({ equipmentId: 5, itemCode: 'EQ-005-001', availabilityStatus: 'Available' });
-    expect(units[7].itemCode).toBe('EQ-005-008');
+    expect(units[0]).toMatchObject({ equipmentId: 5, itemCode: 'VMV-05-01', availabilityStatus: 'Available' });
+    expect(units[7].itemCode).toBe('VMV-05-08');
 
     expect(res.status).toHaveBeenCalledWith(201);
     const data = res.json.mock.calls[0][0].data;
-    expect(data).toMatchObject({ equipmentCode: 'EQ-005', totalQuantity: 8, availableQuantity: 8, borrowedQuantity: 0 });
+    expect(data).toMatchObject({ equipmentCode: 'VMV-05', totalQuantity: 8, availableQuantity: 8, borrowedQuantity: 0 });
     expect(data.itemCodes.every((c) => c.startsWith(data.equipmentCode + '-'))).toBe(true);
   });
 
@@ -91,21 +108,35 @@ describe('POST /api/equipment (create)', () => {
 
 describe('PUT /api/equipment/:id (update quantity)', () => {
   function equipmentRow(overrides) {
-    return { id: 5, totalQuantity: 4, availableQuantity: 4, save: jest.fn().mockResolvedValue(), ...overrides };
+    return {
+      id: 5,
+      equipmentName: 'Volleyball Net',
+      categoryId: 2,
+      totalQuantity: 4,
+      availableQuantity: 4,
+      save: jest.fn().mockResolvedValue(),
+      ...overrides
+    };
   }
 
   test('raising the total registers the extra units immediately', async () => {
     const eq = equipmentRow();
     Equipment.findByPk.mockResolvedValueOnce(eq).mockResolvedValueOnce({ ...eq, category: null, items: [] });
     Item.findAll
-      .mockResolvedValueOnce([1, 2, 3, 4].map((n) => ({ id: n, itemCode: formatItemCode(5, n), availabilityStatus: 'Available' })))
-      .mockResolvedValueOnce([1, 2, 3, 4].map((n) => ({ itemCode: formatItemCode(5, n) })));
+      .mockResolvedValueOnce(
+        [1, 2, 3, 4].map((n) => ({ id: n, itemCode: formatItemCode('Volleyball', 'Volleyball Net', 5, n), availabilityStatus: 'Available' }))
+      )
+      .mockResolvedValueOnce([1, 2, 3, 4].map((n) => ({ itemCode: formatItemCode('Volleyball', 'Volleyball Net', 5, n) })));
     Item.count.mockResolvedValue(6);
 
     await ctrl.update({ params: { id: 5 }, body: { totalQuantity: 6 } }, mockRes());
 
+    // Category.findByPk resolves { categoryName: 'Volleyball' } (see
+    // beforeEach), so the new units' codes use the real letter prefix
+    // ("Volleyball" + "Volleyball Net" → "V" + "VN" = "VVN"), not the
+    // no-category fallback.
     const units = Item.bulkCreate.mock.calls[0][0];
-    expect(units.map((u) => u.itemCode)).toEqual(['EQ-005-005', 'EQ-005-006']);
+    expect(units.map((u) => u.itemCode)).toEqual(['VVN-05-05', 'VVN-05-06']);
     expect(eq.totalQuantity).toBe(6);
     expect(eq.availableQuantity).toBe(6);
   });

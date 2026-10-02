@@ -28,10 +28,11 @@ const SUSTAINABLE_BY_ID = {
 };
 const DUPLICATE_IDS_TO_DELETE = [37, 38, 39]; // Sports Training copies of 22/23/24
 
-// Same canonical "<Equipment ID>-<sequence>" unit codes as Equipment
-// Management (helpers/equipmentCode.js).
+// Same canonical unit codes as Equipment Management (helpers/equipmentCode.js).
+// `equipment` here is already loaded with its category (see the findByPk
+// below), so it's passed straight through.
 async function generateItemsFor(equipment, qty, t) {
-  await createUnits(equipment.id, qty, t);
+  await createUnits(equipment, qty, t);
   await Equipment.increment('availableQuantity', { by: qty, where: { id: equipment.id }, transaction: t });
 }
 
