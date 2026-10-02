@@ -432,7 +432,17 @@
         workflowBody=section('QR-Based Return Section',`<p class="sub" style="margin:0 0 10px">Scan each item, then set its returned condition. Any Damaged/Lost item automatically creates a Damage/Loss Record and restricts the borrower until a verified replacement is resolved.</p>${equipment(t,true)}<div style="text-align:right;margin-top:12px"><button class="btn green" onclick="confirmReturn()">Confirm Return</button></div>`);
       }else if(['For Resolution','Replacement','Resolved'].includes(t.status)){
         workflowBody=section('Damage / Loss Resolution','<div id="resolutionRecords" class="ack">Loading…</div>');
+      }else if(t.status==='Completed'){
+        // Terminal state — the timeline above already shows every step
+        // checked off, so this shouldn't say "awaiting" anything.
+        workflowBody=section('Workflow Status','<div class="ack">Transaction completed — the equipment was returned and this request is closed. No further action is needed.</div>');
+      }else if(t.status==='Rejected'){
+        workflowBody=section('Workflow Status','<div class="ack">This request was rejected and is closed. No further action is needed.</div>');
+      }else if(t.status==='Cancelled'){
+        workflowBody=section('Workflow Status','<div class="ack">This request was cancelled by the borrower and is closed. No further action is needed.</div>');
       }else{
+        // Pending / Acknowledged / For Review / For Approval — genuinely
+        // still moving through the workflow.
         workflowBody=section('Workflow Status','<div class="ack">The request is awaiting the next step.</div>');
       }
       document.getElementById('workflow').innerHTML=section('Approval Workflow Timeline',workflowTimelineHtml(t))+workflowBody;
