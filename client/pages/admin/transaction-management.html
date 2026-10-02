@@ -254,10 +254,17 @@
       const verified=t.documentsVerified
         ?`<div class="ack">✓ Documents verified${t.documentsVerifiedBy?' by '+esc(t.documentsVerifiedBy):''}${t.timestamps&&t.timestamps.documentsVerified?' on '+esc(formatPHDateTime(t.timestamps.documentsVerified)):''}.</div>`
         :['Pending','Acknowledged'].includes(t.status)?'<div class="damage-box show" id="docReviewNote">Review each submitted document, then use “Verify Documents &amp; Forward” to send this request to the Director.</div>':'';
-      return section('Submitted Documents',verified+row('valid-id','Valid ID')+row('authorization-document','Authorization Document'));
+      // Admin/Staff review the actual documents (View Document / Upload)
+      // only up through document verification — the step right before this
+      // request reaches the Director. Once t.documentsVerified is true the
+      // review is done and stays done for every later stage (Approved,
+      // Released, Returned, Completed, ...), so the Overview just shows the
+      // verified line above and drops the document rows, by request.
+      const rows=t.documentsVerified?'':row('valid-id','Valid ID')+row('authorization-document','Authorization Document');
+      return section('Submitted Documents',verified+rows);
     }
     function loadDocumentStatus(t){
-      if(!t.borrowerId)return;
+      if(!t.borrowerId||t.documentsVerified)return;
       apiFetch(`/api/borrowers/${t.borrowerId}/documents`).then(status=>{
         const authLabel=document.getElementById('docLabel-authorization-document');
         if(authLabel&&status.authorizationDocumentLabel)authLabel.textContent=status.authorizationDocumentLabel;
