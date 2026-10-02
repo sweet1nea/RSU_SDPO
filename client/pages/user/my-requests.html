@@ -96,11 +96,9 @@
       Pending:'Your request is awaiting SDPO staff review of your submitted documents.',
       Acknowledged:'Your request is awaiting SDPO staff review of your submitted documents.',
       'For Approval':'Your documents were verified. The request is awaiting Director approval.',
-      Approved:'Please present your student ID when claiming the equipment.',
+      Approved:'Approved. Please present your student ID when claiming the equipment.',
       Cancelled:'This request was cancelled.'
     };
-    const ACK_NOTE='Please acknowledge receipt below to confirm you accept responsibility for the equipment before it can be released to you.';
-    const AWAITING_RELEASE_NOTE='Receipt acknowledged. Please present your student ID when claiming the equipment.';
 
     function groupItems(items){
       const counts=new Map();
@@ -109,20 +107,18 @@
     }
 
     function mapTransaction(t){
-      const acknowledged=!!t.receivedByBorrowerDatetime;
       return {
         dbId:t.dbId,
         id:t.id,
         date:t.date,
         status:t.status,
-        acknowledged,
         reason:t.reason||null,
         cancelled:t.cancelledAt||null,
         items:groupItems(t.items),
         total:t.items.length,
         returnDate:t.due+(t.dueTime?' '+t.dueTime:''),
         purpose:t.purpose,
-        note:t.status==='Approved'?(acknowledged?AWAITING_RELEASE_NOTE:ACK_NOTE):NOTE_BY_STATUS[t.status]
+        note:NOTE_BY_STATUS[t.status]
       };
     }
 
@@ -171,7 +167,6 @@
           <div class="actions">
             <button type="button" class="btn btn-secondary detail-btn" data-id="${esc(r.id)}">View Details</button>
             ${['Pending','Acknowledged'].includes(r.status)?`<button type="button" class="btn btn-outline-danger cancel-btn" data-id="${esc(r.id)}">Cancel Request</button>`:''}
-            ${r.status==='Approved'&&!r.acknowledged?`<button type="button" class="btn btn-primary ack-btn" data-id="${esc(r.id)}">Acknowledge Receipt</button>`:''}
           </div>
         </div>
       </article>`).join(''):'<div class="empty-state"><p class="empty-state__title">No requests found</p><p>Try adjusting your filter or search term.</p></div>';
@@ -190,13 +185,11 @@
       <h3>Equipment requested</h3>
       <ul class="detail-items">${r.items.map(([n,q])=>`<li><span>${esc(n)}</span><b>${q} ${q===1?'unit':'units'}</b></li>`).join('')}</ul>
       <div class="modal-note ${r.reason?'reject':''}">${r.reason?'Reason for rejection: '+esc(r.reason):esc(r.note||'')}</div>`;
-      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}${r.status==='Approved'&&!r.acknowledged?'<button type="button" class="btn btn-primary" id="modalAckBtn">Acknowledge Receipt</button>':''}`;
+      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}`;
       detailModalOverlay.hidden=false;
       $('modalCloseBtn').addEventListener('click',closeDetails);
       const cancelBtn=$('modalCancelBtn');
       if(cancelBtn)cancelBtn.addEventListener('click',()=>cancelRequest(r.id));
-      const ackBtn=$('modalAckBtn');
-      if(ackBtn)ackBtn.addEventListener('click',()=>acknowledgeReceipt(r.id));
     }
     function closeDetails(){detailModalOverlay.hidden=true;}
     function cancelRequest(id){
@@ -207,17 +200,6 @@
         .then(()=>{
           closeDetails();renderFilters();renderCards();
           showToast('Request '+r.id+' has been cancelled.','danger');
-        })
-        .catch(err=>showToast(err.message,'danger'));
-    }
-
-    function acknowledgeReceipt(id){
-      const r=requests.find(x=>x.id===id);
-      apiFetch('/api/borrow/'+r.dbId+'/acknowledge-receipt',{method:'PATCH'})
-        .then(()=>loadRequests())
-        .then(()=>{
-          closeDetails();renderFilters();renderCards();
-          showToast('Receipt acknowledged for '+r.id+'. It is now ready for release.','success');
         })
         .catch(err=>showToast(err.message,'danger'));
     }
@@ -236,7 +218,6 @@
       const b=e.target.closest('[data-id]');
       if(!b)return;
       if(b.classList.contains('cancel-btn'))return cancelRequest(b.dataset.id);
-      if(b.classList.contains('ack-btn'))return acknowledgeReceipt(b.dataset.id);
       openDetails(b.dataset.id);
     });
     document.querySelectorAll('[data-close-modal]').forEach(btn=>btn.addEventListener('click',closeDetails));

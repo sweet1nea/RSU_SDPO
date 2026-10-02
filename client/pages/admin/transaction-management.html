@@ -416,11 +416,10 @@
       loadDocumentStatus(t);
       let workflowBody;
       if(t.status==='Approved'){
-        const acknowledged=!!t.receivedByBorrowerDatetime;
-        const ackNotice=acknowledged
-          ?`<div class="ack">✓ Borrower has electronically acknowledged receipt${t.receivedByBorrowerDatetime?' on '+esc(formatPHDateTime(t.receivedByBorrowerDatetime)):''}. Ready to release.</div>`
-          :`<div class="damage-box show">Waiting on the borrower's electronic acknowledgement of receipt — equipment cannot be released until they confirm from their account.</div>`;
-        workflowBody=section('QR-Based Release Section',`${ackNotice}<h4>Equipment Scan Checklist</h4>${equipment(t)}<div style="text-align:right;margin-top:12px"><button class="btn green" onclick="confirmRelease()" ${acknowledged?'':'disabled'}>Confirm Release</button></div>`);
+        // No borrower electronic-acknowledgement-of-receipt gate — removed
+        // by request. Staff can scan and release as soon as a request is
+        // Approved, with no separate borrower confirmation step.
+        workflowBody=section('QR-Based Release Section',`<h4>Equipment Scan Checklist</h4>${equipment(t)}<div style="text-align:right;margin-top:12px"><button class="btn green" onclick="confirmRelease()">Confirm Release</button></div>`);
       }else if(['Released','Overdue'].includes(t.status)){
         itemConditions={};
         workflowBody=section('QR-Based Return Section',`<p class="sub" style="margin:0 0 10px">Scan each item, then set its returned condition. Any Damaged/Lost item automatically creates a Damage/Loss Record and restricts the borrower until a verified replacement is resolved.</p>${equipment(t,true)}<div style="text-align:right;margin-top:12px"><button class="btn green" onclick="confirmReturn()">Confirm Return</button></div>`);
@@ -459,7 +458,6 @@
       catch(e){alert(e.message);await loadTransactions()}});
     }
     async function confirmRelease(){
-      if(!current.receivedByBorrowerDatetime){toast("Borrower hasn't acknowledged receipt yet");return}
       if(document.querySelectorAll('#workflow .scan:not(.scanned)').length>0){toast('Scan every item before confirming release');return}
       await runAction(async()=>{try{
         await apiFetch(`/api/borrow/${current.dbId}/release`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemCodes:current.items.map(i=>i.code)})});

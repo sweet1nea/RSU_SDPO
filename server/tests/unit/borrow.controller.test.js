@@ -400,7 +400,6 @@ describe('release()', () => {
     const txn = stubFindByPkResult({
       id: 7,
       transactionStatus: 'Approved',
-      receivedByBorrowerDatetime: new Date(),
       details: [{ item: { itemCode: 'EQ-001-001', availabilityStatus: 'Available', update: jest.fn(), equipment: { equipmentName: 'Basketball' } } }]
     });
     Transaction.findByPk.mockResolvedValueOnce(txn);
@@ -409,18 +408,14 @@ describe('release()', () => {
     });
   });
 
-  test('refuses to release before the borrower acknowledges receipt', async () => {
-    const txn = stubFindByPkResult({ id: 9, transactionStatus: 'Approved', receivedByBorrowerDatetime: null, details: [reservedDetail(jest.fn())] });
-    Transaction.findByPk.mockResolvedValueOnce(txn);
-    await expect(ctrl.release({ params: { id: 9 }, body: { itemCodes: ['EQ-001-001'] }, user: { id: 3 } }, mockRes())).rejects.toMatchObject({
-      statusCode: 409,
-      message: expect.stringMatching(/acknowledg/i)
-    });
-  });
-
+  // The borrower electronic-acknowledgement-of-receipt gate (and the
+  // acknowledgeReceipt() endpoint that set it) was removed by request —
+  // staff can release equipment as soon as a request is Approved, with no
+  // separate borrower confirmation step. release() no longer checks
+  // receivedByBorrowerDatetime at all.
   test('releases (also by a legacy label code) without double-decrementing stock', async () => {
     const itemUpdate = jest.fn().mockResolvedValue();
-    const txn = stubFindByPkResult({ id: 8, transactionStatus: 'Approved', borrowerId: 5, receivedByBorrowerDatetime: new Date(), details: [reservedDetail(itemUpdate)] });
+    const txn = stubFindByPkResult({ id: 8, transactionStatus: 'Approved', borrowerId: 5, details: [reservedDetail(itemUpdate)] });
     Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
 
     await ctrl.release({ params: { id: 8 }, body: { itemCodes: ['BB-1-001'] }, user: { id: 3 } }, mockRes());
@@ -431,43 +426,11 @@ describe('release()', () => {
   });
 
   test('a code from a different unit does not match', async () => {
-    const txn = stubFindByPkResult({ id: 10, transactionStatus: 'Approved', receivedByBorrowerDatetime: new Date(), details: [reservedDetail(jest.fn())] });
+    const txn = stubFindByPkResult({ id: 10, transactionStatus: 'Approved', details: [reservedDetail(jest.fn())] });
     Transaction.findByPk.mockResolvedValueOnce(txn);
     await expect(ctrl.release({ params: { id: 10 }, body: { itemCodes: ['EQ-001-002'] }, user: { id: 3 } }, mockRes())).rejects.toMatchObject({
       statusCode: 409
     });
-  });
-});
-
-describe('acknowledgeReceipt()', () => {
-  test('rejects a borrower who does not own the transaction', async () => {
-    Borrower.findOne.mockResolvedValueOnce({ id: 6 });
-    Transaction.findByPk.mockResolvedValueOnce(stubFindByPkResult({ id: 20, transactionStatus: 'Approved', borrowerId: 5 }));
-    await expect(ctrl.acknowledgeReceipt({ params: { id: 20 }, user: { id: 9 } }, mockRes())).rejects.toMatchObject({ statusCode: 403 });
-  });
-
-  test('rejects when the transaction is not yet Approved', async () => {
-    Transaction.findByPk.mockResolvedValueOnce(stubFindByPkResult({ id: 21, transactionStatus: 'For Approval', borrowerId: 5 }));
-    await expect(ctrl.acknowledgeReceipt({ params: { id: 21 }, user: { id: 9 } }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
-  });
-
-  test('rejects if receipt was already acknowledged', async () => {
-    Transaction.findByPk.mockResolvedValueOnce(
-      stubFindByPkResult({ id: 22, transactionStatus: 'Approved', borrowerId: 5, receivedByBorrowerDatetime: new Date() })
-    );
-    await expect(ctrl.acknowledgeReceipt({ params: { id: 22 }, user: { id: 9 } }, mockRes())).rejects.toMatchObject({ statusCode: 409 });
-  });
-
-  test('records the acknowledgement timestamp with a conditional update', async () => {
-    const txn = stubFindByPkResult({ id: 23, transactionStatus: 'Approved', borrowerId: 5, receivedByBorrowerDatetime: null });
-    Transaction.findByPk.mockResolvedValueOnce(txn).mockResolvedValueOnce(txn);
-    const res = mockRes();
-    await ctrl.acknowledgeReceipt({ params: { id: 23 }, user: { id: 9 } }, res);
-    expect(Transaction.update).toHaveBeenCalledWith(
-      { receivedByBorrowerDatetime: expect.any(Date) },
-      { where: { id: 23, transactionStatus: 'Approved', receivedByBorrowerDatetime: null } }
-    );
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: expect.objectContaining({ dbId: 23 }) }));
   });
 });
 

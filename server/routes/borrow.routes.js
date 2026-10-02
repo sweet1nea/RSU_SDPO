@@ -22,7 +22,6 @@ router.post('/request', borrowerOnly, catchAsync(ctrl.createSelfRequest));
 router.patch('/:id/cancel', borrowerOnly, catchAsync(ctrl.cancelSelfRequest));
 router.patch('/:id/review', reviewerOnly, catchAsync(ctrl.review));
 router.patch('/:id/approve', directorOnly, catchAsync(ctrl.approve));
-router.patch('/:id/acknowledge-receipt', borrowerOnly, catchAsync(ctrl.acknowledgeReceipt));
 router.patch('/:id/reject', staffOnly, catchAsync(ctrl.reject));
 router.post('/:id/release', staffOnly, catchAsync(ctrl.release));
 router.patch('/:id/complete', staffOnly, catchAsync(ctrl.complete));

@@ -664,28 +664,6 @@ exports.approve = async (req, res) => {
   res.json({ success: true, data: serialize(await loadTransactionOr404(txn.id)) });
 };
 
-// Step 4 — the borrower's electronic acknowledgement of receipt (no
-// signature), required before staff can release the equipment.
-exports.acknowledgeReceipt = async (req, res) => {
-  const borrower = await Borrower.findOne({ where: { userId: req.user.id } });
-  const txn = await loadTransactionOr404(req.params.id);
-  if (!borrower || txn.borrowerId !== borrower.id) {
-    throw httpError(403, 'You do not have permission to acknowledge this transaction');
-  }
-  assertStatus(txn, STATUS.APPROVED);
-  if (txn.receivedByBorrowerDatetime) {
-    throw httpError(409, 'Receipt has already been acknowledged for this transaction');
-  }
-  const [count] = await Transaction.update(
-    { receivedByBorrowerDatetime: new Date() },
-    { where: { id: txn.id, transactionStatus: STATUS.APPROVED, receivedByBorrowerDatetime: null } }
-  );
-  if (!count) {
-    throw httpError(409, 'Receipt has already been acknowledged for this transaction');
-  }
-  res.json({ success: true, data: serialize(await loadTransactionOr404(txn.id)) });
-};
-
 exports.reject = async (req, res) => {
   const remarks = req.body.remarks ? String(req.body.remarks).trim() : '';
   const txn = await loadTransactionOr404(req.params.id);
@@ -726,13 +704,6 @@ exports.release = async (req, res) => {
 
   const txn = await loadTransactionOr404(req.params.id);
   assertStatus(txn, STATUS.APPROVED);
-
-  if (!txn.receivedByBorrowerDatetime) {
-    throw httpError(
-      409,
-      'The borrower has not yet completed the electronic acknowledgement of receipt for this request — it must be acknowledged before equipment can be released.'
-    );
-  }
 
   const scanned = itemCodes.map((c) => String(c).trim());
   const units = txn.details.map((d) => d.item);
