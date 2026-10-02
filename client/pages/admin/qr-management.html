@@ -53,7 +53,7 @@ body{font:13px/1.45 Inter,Arial,sans-serif}
 <section class="notice"><span class="lock">🔒</span><div><b>RSU-SDPO QR Permanent Label System</b><p>Each QR code encodes a <strong>unique, permanent Item Code</strong> plus institution, office, equipment name, and category. No dynamic data is embedded. Regenerating creates a <strong>new unique Item Code</strong> — old codes are never reused. When scanned, the app queries the database using the Item Code for live equipment data.</p></div></section>
 <section class="scanner-cta"><div><b>⌕ Open QR Scanner</b><p>Point your device's camera at any printed or engraved RSU-SDPO label to look up its live status.</p></div><button class="scanner-cta-btn" id="openScannerBtn" type="button">⌕ &nbsp; Open QR Scanner</button></section>
 <section class="workspace"><div><div class="tabs"><button class="tab active" data-tab="single">⊕ Single QR</button><button class="tab" data-tab="bulk">⊞ Bulk QR</button></div><section class="generator"><div class="gen-head"><span class="gen-icon"><img src="../../assets/images/icon-qr-code.png" alt=""></span><div><b id="genTitle">Single QR Generator</b><small id="genSub">Generate one QR code per equipment item</small></div></div><div class="form" id="singleForm"><div class="field"><label>Equipment</label><select id="equipment"><option value="">Select equipment...</option></select><p class="help">Only equipment already in Equipment Management can get QR codes. New equipment types are added there first.</p><p class="help" id="existingNote" style="display:none"></p></div><div class="field"><label>Category</label><div class="auto" id="categoryDisplay"><span>Select an equipment first</span></div></div><div class="field"><label>Quantity</label><input id="quantity" type="number" min="1" value="1"></div><div class="field"><label>Item Code (Auto-generated)</label><div class="auto"># <span id="codePreview">Equipment ID + unit number (e.g. EQ-005-001)</span></div><p class="help">Each unit's code starts with its Equipment ID, so a scanned label always identifies the same equipment record. Units are registered automatically when equipment is added; generate here only for units an older record is missing.</p></div><div class="encode"><strong>QR will encode:</strong><div><span class="check">✓</span>Romblon State University</div><div><span class="check">✓</span>Sports Development Program Office</div><div><span class="check">✓</span><span id="encodeEquipmentName">Select an equipment first</span></div><div class="itemcode"><span class="check">✓</span>Auto-generated Item Code</div><div><span class="check">✓</span><span id="encodeCategory">—</span></div></div><button class="primary" id="generate">Generate QR Code</button></div><div class="form bulk-form" id="bulkForm" hidden><div class="bulk-note"><b>Auto-ID:</b> Each row gets a unique, auto-generated Item Code. Leave any row empty to skip it.</div><div class="bulk-labels"><span>Equipment</span><span>Quantity</span><span></span></div><div id="bulkRows"></div><button class="add" id="addRow"><span>＋</span>Add Row</button><button class="primary" id="generateBulk">Generate Bulk QR Codes</button></div></section></div>
-<section class="history"><div class="history-head"><div class="history-title"><span>QR Generation History <em class="pill" id="count">12</em></span><span class="shown" id="shown">12/12 shown</span></div></div><div class="filters"><input class="search" id="search" placeholder="⌕  Search name or item code..."><div class="filter-line"><select id="catFilter"><option>All Categories</option></select><select id="printFilter"><option>Print Status</option><option>Printed</option><option>Not printed</option></select></div><div class="actions"><button id="printBtn">▣ &nbsp;Print</button><button id="png">⇩ &nbsp;Download PNG</button><button id="pdf" title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination">□ &nbsp;Download PDF</button></div></div><div class="table-wrap"><div class="table"><div class="tr head"><div><input type="checkbox" id="all"></div><div>DATE &amp; TIME</div><div>EQUIPMENT NAME</div><div>ITEM CODE</div><div>CATEGORY</div><div>STATUS</div><div></div></div><div id="rows"></div></div></div><div class="records"><b id="records">12 of 12 records</b><i>Sorted by most recent · Click QR thumbnail to preview</i></div></section></section><section class="scan"><span class="info">ⓘ</span><div><b>Scanning behavior:</b> When an RSU-SDPO QR label is scanned, the embedded <code>Item Code</code> is extracted and used to query the database for the equipment's live status, condition, borrower, and full transaction history.<br>Dynamic data is never embedded in the QR — laser-engraved labels remain valid indefinitely, even as records change.<br><b>Regenerating a QR code always produces a new unique Item Code.</b> The old code remains in history for audit purposes.</div></section>
+<section class="history"><div class="history-head"><div class="history-title"><span>QR Generation History <em class="pill" id="count">12</em></span><span class="shown" id="shown">12/12 shown</span></div></div><div class="filters"><input class="search" id="search" placeholder="⌕  Search name or item code..."><div class="filter-line"><select id="catFilter"><option>All Categories</option></select><select id="printFilter"><option>Print Status</option><option>Printed</option><option>Not printed</option></select></div><div class="actions"><button id="printBtn">▣ &nbsp;Print</button><button id="png">⇩ &nbsp;Download PNG</button><button id="pdf" title="Download a PDF of the selected QR labels">□ &nbsp;Download PDF</button></div></div><div class="table-wrap"><div class="table"><div class="tr head"><div><input type="checkbox" id="all"></div><div>DATE &amp; TIME</div><div>EQUIPMENT NAME</div><div>ITEM CODE</div><div>CATEGORY</div><div>STATUS</div><div></div></div><div id="rows"></div></div></div><div class="records"><b id="records">12 of 12 records</b><i>Sorted by most recent · Click QR thumbnail to preview</i></div></section></section><section class="scan"><span class="info">ⓘ</span><div><b>Scanning behavior:</b> When an RSU-SDPO QR label is scanned, the embedded <code>Item Code</code> is extracted and used to query the database for the equipment's live status, condition, borrower, and full transaction history.<br>Dynamic data is never embedded in the QR — laser-engraved labels remain valid indefinitely, even as records change.<br><b>Regenerating a QR code always produces a new unique Item Code.</b> The old code remains in history for audit purposes.</div></section>
 </div>
 <div class="modal" id="modal"><div class="modal-box"><h2 id="modalTitle">QR Label Preview</h2><p id="modalCode"></p><canvas class="bigqr" id="bigQrCanvas" width="174" height="174"></canvas><button id="closeModal">Close preview</button></div></div>
 <div id="printSheet"></div>
@@ -69,6 +69,7 @@ body{font:13px/1.45 Inter,Arial,sans-serif}
 <script src="../../js/shared/api.js"></script>
 <script src="../../js/vendor/qrious.min.js"></script>
 <script src="../../js/vendor/jsQR.js"></script>
+<script src="../../js/vendor/jspdf.umd.min.js"></script>
 <script>
 let tab='single',equipmentList=[],categories=[],items=[],visible=[];const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -130,6 +131,42 @@ function openPreview(name,code){const item=items.find(i=>i.code===code)||{name,c
 function selectedItems(){const codes=[...document.querySelectorAll('#rows input[type=checkbox][data-code]:checked')].map(x=>x.dataset.code);return codes.length?items.filter(x=>codes.includes(x.code)):visible}
 function downloadPNG(){const list=selectedItems();if(!list.length){alert('No QR codes to export.');return}list.forEach(x=>{const c=document.createElement('canvas');paintQR(c,scanUrl(x),512);const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=`QR_${x.code}.png`;a.click()})}
 function printLabels(){const list=selectedItems();if(!list.length){alert('No QR codes to print.');return}$('#printSheet').innerHTML=list.map((x,i)=>`<div class="label"><canvas data-i="${i}"></canvas><b>${esc(x.equipmentName)}</b><span>${esc(x.code)}</span><span>Equipment ID: ${esc(x.equipmentCode||'')}</span></div>`).join('');document.querySelectorAll('#printSheet canvas').forEach(c=>paintQR(c,scanUrl(list[c.dataset.i]),320));window.print()}
+// Real one-click PDF export (2026-10-02) — previously "Download PDF" just
+// called printLabels() and relied on the person picking "Save as PDF" in
+// the browser's print dialog, which read as broken ("nothing downloads").
+// Builds an actual multi-page PDF client-side with jsPDF: a 3-column grid
+// of QR label cells (image + equipment name + item code + Equipment ID),
+// same information as the print sheet, saved straight to disk with no
+// print-dialog detour. QR size is a fixed 42mm — under the manuscript's
+// 50mm x 50mm maximum label size — and the page auto-advances once a grid
+// fills, so large selections span multiple pages correctly.
+function downloadPDF(){
+  const list=selectedItems();
+  if(!list.length){alert('No QR codes to export.');return}
+  if(!window.jspdf||!window.jspdf.jsPDF){alert('The PDF library failed to load. Please reload the page and try again.');return}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const pageW=210,pageH=297,margin=14,cols=3,cellW=(pageW-margin*2)/cols,cellH=58,qrSize=42;
+  const rowsPerPage=Math.max(1,Math.floor((pageH-margin*2)/cellH));
+  const perPage=cols*rowsPerPage;
+  list.forEach((item,i)=>{
+    const posOnPage=i%perPage;
+    if(i>0&&posOnPage===0)doc.addPage();
+    const col=posOnPage%cols,row=Math.floor(posOnPage/cols);
+    const cellX=margin+col*cellW,cellY=margin+row*cellH;
+    const canvas=document.createElement('canvas');
+    paintQR(canvas,scanUrl(item),400);
+    const qrX=cellX+(cellW-qrSize)/2;
+    doc.addImage(canvas.toDataURL('image/png'),'PNG',qrX,cellY,qrSize,qrSize);
+    doc.setFontSize(9);doc.setTextColor(17,17,17);
+    doc.text(item.equipmentName,cellX+cellW/2,cellY+qrSize+5,{align:'center',maxWidth:cellW-6});
+    doc.setFontSize(8);doc.setTextColor(85,85,85);
+    doc.text(item.code,cellX+cellW/2,cellY+qrSize+10,{align:'center'});
+    if(item.equipmentCode)doc.text(`Equipment ID: ${item.equipmentCode}`,cellX+cellW/2,cellY+qrSize+14,{align:'center'});
+    doc.setTextColor(0,0,0);
+  });
+  doc.save(`RSU-SDPO_QR_Labels_${new Date().toISOString().slice(0,10)}.pdf`);
+}
 function rows(){return [...document.querySelectorAll('.bulk-row')].filter(x=>x.querySelector('select').value)}
 function ready(){const ok=tab==='single'?($('#equipment').value&&Number($('#quantity').value)>=1):rows().length;$('#generate').classList.toggle('ready',!!ok);$('#generateBulk').classList.toggle('ready',!!ok)}
 function addBulk(){const el=document.createElement('div');el.className='bulk-row';el.innerHTML=`<select>${equipmentOptionsHtml()}</select><input type="number" min="1" value="1"><button class="remove">×</button>`;el.querySelectorAll('select,input').forEach(x=>x.oninput=ready);el.querySelector('.remove').onclick=()=>{if(document.querySelectorAll('.bulk-row').length>1)el.remove();ready()};$('#bulkRows').append(el)}
@@ -142,7 +179,7 @@ $('#generateBulk').onclick=async()=>{const pending=rows();if(!pending.length)ret
 $('#all').onchange=e=>document.querySelectorAll('#rows input').forEach(x=>x.checked=e.target.checked);
 $('#closeModal').onclick=()=>$('#modal').classList.remove('show');
 $('#modal').onclick=e=>{if(e.target===$('#modal'))$('#modal').classList.remove('show')};
-$('#png').onclick=downloadPNG;$('#printBtn').onclick=printLabels;$('#pdf').onclick=printLabels;
+$('#png').onclick=downloadPNG;$('#printBtn').onclick=printLabels;$('#pdf').onclick=downloadPDF;
 ['#search','#catFilter'].forEach(s=>$(s).oninput=draw);
 // --- Open QR Scanner: a free-form camera scanner for any RSU-SDPO label,
 // not tied to a specific generator row. On a successful decode it opens the
