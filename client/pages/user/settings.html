@@ -93,7 +93,30 @@
           <div class="field"><label class="field__label" for="nameInput">Full name</label><input class="field__control" id="nameInput" required></div>
           <div class="field"><label class="field__label" for="emailInput">Email address</label><input class="field__control" id="emailInput" type="email" required></div>
           <div class="field"><label class="field__label" for="contactInput">Contact number</label><input class="field__control" id="contactInput" placeholder="e.g. 09123456789"></div>
-          <div class="field"><label class="field__label" for="collegeInput">College / Unit</label><input class="field__control" id="collegeInput"></div>
+          <div class="field">
+            <label class="field__label" for="collegeInput">College / Unit</label>
+            <select class="field__control" id="collegeInput">
+              <option value="">Select your college or unit...</option>
+              <optgroup label="Main Campus">
+                <option>College of Arts and Sciences (CAS)</option>
+                <option>College of Business and Accountancy (CBA)</option>
+                <option>College of Education (CED)</option>
+                <option>College of Engineering and Technology (CET)</option>
+                <option>College of Computing, Multimedia Arts and Digital Innovation (CCMADI)</option>
+                <option>College of Agriculture, Fisheries and Environmental Sciences (CAFES)</option>
+                <option>Graduate Education and Professional Studies (GEPS)</option>
+              </optgroup>
+              <optgroup label="Satellite Campuses">
+                <option>College of Social Development and Behavioral Sciences — RSU Romblon</option>
+                <option>College of Public Affairs and Governance — RSU San Agustin</option>
+                <option>College of Philippine Studies and Cultural Sciences — RSU Calatrava</option>
+                <option>College of Marine Sciences and Aquatic Resources — RSU Sta. Maria</option>
+                <option>College of Food Science and Nutrition — RSU Sta. Maria</option>
+              </optgroup>
+              <option value="__other__">Others (please specify)</option>
+            </select>
+            <input class="field__control" id="collegeOtherInput" placeholder="Enter your college or unit" style="margin-top:8px" hidden>
+          </div>
           <div class="field" id="categoryField">
             <label class="field__label" for="categoryInput">Borrower Type</label>
             <select class="field__control" id="categoryInput" required>
@@ -227,7 +250,28 @@
       $('nameInput').value = hasBorrowerProfile ? name : '';
       $('emailInput').value = user.emailAddress;
       $('contactInput').value = user.contactNumber || '';
-      $('collegeInput').value = (user.borrowerProfile && user.borrowerProfile.collegeOrUnit) || '';
+      // The dropdown only lists the 12 actual RSU colleges/units plus an
+      // "Others" catch-all — an existing saved value that doesn't match any
+      // of those (e.g. free text entered before this dropdown existed, or a
+      // genuinely different office) falls back to selecting "Others" with
+      // the original text preserved in the adjacent free-text field, rather
+      // than silently losing or mismatching it.
+      const savedCollege = (user.borrowerProfile && user.borrowerProfile.collegeOrUnit) || '';
+      const collegeKnownValues = Array.from($('collegeInput').options).map(o => o.value).filter(v => v && v !== '__other__');
+      if (savedCollege && collegeKnownValues.includes(savedCollege)) {
+        $('collegeInput').value = savedCollege;
+        $('collegeOtherInput').hidden = true;
+        $('collegeOtherInput').value = '';
+      } else if (savedCollege) {
+        $('collegeInput').value = '__other__';
+        $('collegeOtherInput').hidden = false;
+        $('collegeOtherInput').value = savedCollege;
+      } else {
+        $('collegeInput').value = '';
+        $('collegeOtherInput').hidden = true;
+        $('collegeOtherInput').value = '';
+      }
+      $('collegeOtherInput').required = $('collegeInput').value === '__other__';
       // Borrower Type is editable; the server validates it and every page
       // reads it live from the profile, so a change applies system-wide.
       $('categoryInput').value = (user.borrowerProfile && user.borrowerProfile.borrowerCategory) || 'Student';
@@ -254,6 +298,13 @@
         renderProfile(user);
       }).catch(err => showToast('Could not load your profile: ' + err.message, 'danger'));
     }
+
+    $('collegeInput').addEventListener('change', () => {
+      const isOther = $('collegeInput').value === '__other__';
+      $('collegeOtherInput').hidden = !isOther;
+      $('collegeOtherInput').required = isOther;
+      if (!isOther) $('collegeOtherInput').value = '';
+    });
 
     $('editProfile').addEventListener('click', () => { profileModalOverlay.hidden = false; });
     $('passwordButton').addEventListener('click', () => { passwordModalOverlay.hidden = false; });
@@ -294,7 +345,7 @@
         lastName,
         emailAddress: $('emailInput').value.trim(),
         contactNumber: $('contactInput').value.trim() || null,
-        collegeOrUnit: $('collegeInput').value.trim(),
+        collegeOrUnit: $('collegeInput').value === '__other__' ? $('collegeOtherInput').value.trim() : $('collegeInput').value,
         borrowerCategory: $('categoryInput').value
       };
       apiFetch('/api/users/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })

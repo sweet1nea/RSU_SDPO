@@ -132,8 +132,34 @@
           </label>
           <label>
             <span>College / Unit</span>
-            <div class="field-group" id="signupCollegeGroup"><input id="signupCollege" type="text" placeholder="e.g. College of Engineering" autocomplete="organization"></div>
+            <div class="field-group" id="signupCollegeGroup">
+              <select id="signupCollege">
+                <option value="">Select your college or unit...</option>
+                <optgroup label="Main Campus">
+                  <option>College of Arts and Sciences (CAS)</option>
+                  <option>College of Business and Accountancy (CBA)</option>
+                  <option>College of Education (CED)</option>
+                  <option>College of Engineering and Technology (CET)</option>
+                  <option>College of Computing, Multimedia Arts and Digital Innovation (CCMADI)</option>
+                  <option>College of Agriculture, Fisheries and Environmental Sciences (CAFES)</option>
+                  <option>Graduate Education and Professional Studies (GEPS)</option>
+                </optgroup>
+                <optgroup label="Satellite Campuses">
+                  <option>College of Social Development and Behavioral Sciences — RSU Romblon</option>
+                  <option>College of Public Affairs and Governance — RSU San Agustin</option>
+                  <option>College of Philippine Studies and Cultural Sciences — RSU Calatrava</option>
+                  <option>College of Marine Sciences and Aquatic Resources — RSU Sta. Maria</option>
+                  <option>College of Food Science and Nutrition — RSU Sta. Maria</option>
+                </optgroup>
+                <option value="__other__">Others (please specify)</option>
+              </select>
+            </div>
             <span class="field-error" id="signupCollegeError"></span>
+          </label>
+          <label id="signupCollegeOtherLabel" hidden>
+            <span>Specify College / Unit</span>
+            <div class="field-group" id="signupCollegeOtherGroup"><input id="signupCollegeOther" type="text" placeholder="Enter your college or unit" autocomplete="organization"></div>
+            <span class="field-error" id="signupCollegeOtherError"></span>
           </label>
           <label>
             <span>Borrower Type</span>
@@ -268,6 +294,19 @@
       window.location.href = staffRoles.includes(user.userRole) ? '../admin/dashboard.html' : '../user/equipment-showroom-figma.html';
     }
 
+    // Shows the free-text "specify your college or unit" field only when
+    // the dropdown's catch-all option is picked — keeps the common case
+    // (one of the 12 actual RSU colleges) a clean dropdown pick, while still
+    // allowing a unit that isn't on the list (e.g. a non-academic office).
+    $('signupCollege').addEventListener('change', () => {
+      const isOther = $('signupCollege').value === '__other__';
+      $('signupCollegeOtherLabel').hidden = !isOther;
+      if (!isOther) {
+        $('signupCollegeOther').value = '';
+        setFieldError('signupCollegeOtherGroup', 'signupCollegeOtherError', '');
+      }
+    });
+
     $('openSignupButton').addEventListener('click', showSignup);
     $('backToLoginButton').addEventListener('click', () => showLogin());
     $('forgotPasswordButton').addEventListener('click', showForgot);
@@ -370,14 +409,19 @@
       e.preventDefault();
       const name = $('signupName').value.trim();
       const email = $('signupEmail').value.trim();
-      const college = $('signupCollege').value.trim();
+      const collegeChoice = $('signupCollege').value;
+      const collegeOther = $('signupCollegeOther').value.trim();
+      const college = collegeChoice === '__other__' ? collegeOther : collegeChoice;
       const category = $('signupCategory').value;
       const pw = $('signupPassword').value;
       const confirm = $('signupConfirm').value;
       let ok = true;
       ok = setFieldError('signupNameGroup', 'signupNameError', name ? '' : 'Enter your full name.') && ok;
       ok = setFieldError('signupEmailGroup', 'signupEmailError', EMAIL_RE.test(email) ? '' : 'Enter a valid email address.') && ok;
-      ok = setFieldError('signupCollegeGroup', 'signupCollegeError', college ? '' : 'Enter your college or unit.') && ok;
+      ok = setFieldError('signupCollegeGroup', 'signupCollegeError', collegeChoice ? '' : 'Select your college or unit.') && ok;
+      if (collegeChoice === '__other__') {
+        ok = setFieldError('signupCollegeOtherGroup', 'signupCollegeOtherError', collegeOther ? '' : 'Enter your college or unit.') && ok;
+      }
       ok = setFieldError('signupPasswordGroup', 'signupPasswordError', pw.length >= 8 ? '' : 'Password must be at least 8 characters.') && ok;
       ok = setFieldError('signupConfirmGroup', 'signupConfirmError', confirm && confirm === pw ? '' : 'Passwords do not match.') && ok;
       if (!ok) return;
