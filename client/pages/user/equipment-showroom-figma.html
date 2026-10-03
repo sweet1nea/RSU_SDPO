@@ -776,6 +776,21 @@
       return equipmentRows.filter(r=>r.equipmentId===equipmentId&&r.rowId!==excludeRowId).reduce((sum,r)=>sum+(r.quantity||0),0);
     }
 
+    // Unlike reservedByOtherRows (which excludes the row asking), this
+    // includes every row — it's "how much of this equipment does the
+    // request ask for in total," which is exactly what the server checks
+    // against the per-request cap (see borrow.controller.js#createSelfRequest,
+    // "Merge repeated lines for the same equipment so the per-request cap
+    // can't be sidestepped by splitting a quantity across rows"). The
+    // per-row stepper cap alone can't catch this: three separate rows of
+    // Agility Cone at 1 unit each all individually respect "max 2 per
+    // request," but together ask for 3, which the server correctly rejects
+    // at Submit — too late in the wizard to be useful (2026-10-03 report:
+    // "it says max 2 per req right, its 3 now didn't it apply?").
+    function combinedQuantityForEquipment(equipmentId){
+      return equipmentRows.filter(r=>r.equipmentId===equipmentId).reduce((sum,r)=>sum+(r.quantity||0),0);
+    }
+
     function equipmentOptionsHtml(selectedId,excludeRowId){
       const opts=products.map(p=>{
         const available=Math.max(0,p.available-reservedByOtherRows(p.id,excludeRowId));
@@ -803,11 +818,27 @@
         // submittable instead of letting a stale quantity slip through to
         // a 409 at Continue.
         if(product&&row.quantity>cap&&cap>0)row.quantity=cap;
+        // The per-row stepper cap above only limits a single row in
+        // isolation — it can't stop three separate rows of the same
+        // equipment at 1 unit each from quietly adding up to more than the
+        // policy actually allows for that equipment in this request. The
+        // server checks the true total against the cap computed from the
+        // equipment's RAW available count (see
+        // borrow.controller.js#createSelfRequest's "Merge repeated lines"
+        // step) — not this row's own other-rows-adjusted display number —
+        // so this check mirrors that exactly, rather than the locally
+        // shrinking `cap` above, to predict what the server will actually
+        // accept (2026-10-03 report: "it says max 2 per req right, its 3
+        // now didn't it apply?").
+        const rawCap=product?maxBorrowableUnits(product.available,product.total):0;
+        const combinedQty=product?combinedQuantityForEquipment(row.equipmentId):0;
+        const combinedExceeds=product&&rawCap>0&&combinedQty>rawCap;
         return `<div class="equip-row" data-row="${row.rowId}">
           <div class="equip-row__main">
             <select class="equip-row__select">${equipmentOptionsHtml(row.equipmentId,row.rowId)}</select>
             <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Max ${cap} per request</span>`:''}`:''}</div>
             ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — choose a different item.</div>':''}
+            ${!minBlocked&&combinedExceeds?`<div class="equip-min-stock-note">⚠ You have ${combinedQty} total of "${esc(product.name)}" across your rows, but only ${rawCap} may be borrowed per request — combine them into one row of ${rawCap} or remove the extra row(s).</div>`:''}
           </div>
           <div class="equip-row__stepper">
             <button type="button" class="equip-row__dec" ${row.quantity<=1?'disabled':''}>−</button>
@@ -886,7 +917,21 @@
     function updateStepValidity(){
       saveDraft();
       $('toStep1').disabled=!$('acknowledge').checked;
-      const hasEquip=equipmentRows.length>0&&equipmentRows.every(r=>r.equipmentId&&r.quantity>0);
+      // A row's own per-row cap can look fine in isolation while the SAME
+      // equipment split across multiple rows still exceeds what one
+      // request may actually borrow of it — see combinedQuantityForEquipment
+      // and the ⚠ note rendered per row in renderEquipmentList(). Blocking
+      // Continue here, not just showing the note, keeps the wizard from
+      // reaching Submit only to fail with a 409 after documents/review are
+      // already filled in.
+      const noCombinedCapExceeded=equipmentRows.every(r=>{
+        if(!r.equipmentId)return true;
+        const product=productById(r.equipmentId);
+        if(!product)return true;
+        const rawCap=maxBorrowableUnits(product.available,product.total);
+        return rawCap<=0||combinedQuantityForEquipment(r.equipmentId)<=rawCap;
+      });
+      const hasEquip=equipmentRows.length>0&&equipmentRows.every(r=>r.equipmentId&&r.quantity>0)&&noCombinedCapExceeded;
       const returnDateOk=$('returnDateInput').value&&$('returnDateInput').value>=todayLocalDateStr();
       const infoValid=hasEquip&&$('purposeInput').value.trim()&&returnDateOk&&$('returnTimeInput').value;
       $('toStep2').disabled=!infoValid;
