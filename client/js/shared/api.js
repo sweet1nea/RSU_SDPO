@@ -107,18 +107,37 @@ function newRequestKey() {
 // way past Vercel's hard 4.5MB-per-request body cap (see
 // server/middlewares/uploadMiddleware.js). Three steps, all hidden behind
 // this one call: ask the server for a short-lived signed upload URL (/sign),
-// PUT the raw file to that URL directly, then tell the server the upload
+// PUT the file to that URL directly, then tell the server the upload
 // finished (/confirm) so it can verify what Storage actually received and
 // swap the borrower's document pointer to it. `field` is 'validId' or
 // 'authorizationDocument'. Returns the same {validIdUploaded,...} shape
 // GET /api/borrowers/me/documents does.
+//
+// The PUT body is NOT the raw file. A signed-upload-URL PUT is not a plain
+// S3-style presigned PUT — Supabase Storage's /object/upload/sign/{path}
+// endpoint expects multipart/form-data: a "cacheControl" field plus the
+// file itself appended under an EMPTY field name, exactly what the
+// official @supabase/storage-js client sends from
+// StorageFileApi#uploadToSignedUrl (confirmed by reading
+// node_modules/@supabase/storage-js's own source — this project doesn't
+// pull in the full supabase-js client on the frontend, just this one
+// endpoint's contract). An earlier version of this function PUT the raw
+// File as the body with a Content-Type header, which this project's own
+// Playwright tests never caught because they mock the PUT and never
+// exercise Storage's real contract — but it meant every document upload
+// failed against the live Supabase project (2026-10-03 report: "uploading
+// still isn't working"). Do not set a Content-Type header on this
+// request — the browser must set its own multipart boundary for FormData.
 function uploadBorrowerDocument(field, file) {
   return apiFetch('/api/borrowers/me/documents/sign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ field: field, contentType: file.type, size: file.size })
   }).then(function (signed) {
-    return fetch(signed.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } }).then(function (putRes) {
+    var formData = new FormData();
+    formData.append('cacheControl', '3600');
+    formData.append('', file);
+    return fetch(signed.uploadUrl, { method: 'PUT', body: formData, headers: { 'x-upsert': 'false' } }).then(function (putRes) {
       if (!putRes.ok) {
         throw new Error('Upload to storage failed (' + putRes.status + '). Please try again.');
       }
