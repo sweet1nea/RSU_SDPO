@@ -16,7 +16,7 @@ jest.mock('../../models', () => ({
   TransactionDetail: { bulkCreate: jest.fn() },
   Borrower: { findOne: jest.fn(), findByPk: jest.fn() },
   User: { findByPk: jest.fn() },
-  Item: { findAll: jest.fn(), update: jest.fn() },
+  Item: { findAll: jest.fn(), update: jest.fn(), count: jest.fn() },
   Equipment: { findByPk: jest.fn(), decrement: jest.fn(), increment: jest.fn() },
   Category: {},
   TransactionLog: {},
@@ -138,6 +138,38 @@ describe('createSelfRequest — Green/Yellow/Red availability-threshold caps', (
 
     await expect(ctrl.createSelfRequest(selfReq([{ equipmentId: 1, quantity: 2 }]), mockRes())).rejects.toMatchObject({ statusCode: 409 });
     expect(equipment.decrement).not.toHaveBeenCalled();
+    expect(Item.count).not.toHaveBeenCalled(); // totalQuantity unknown here — no registration-gap check possible
+  });
+
+  // 2026-10 bug report: "quantity is 10, they borrow 2" got the same
+  // "Not enough stock" message as genuine depletion — but the real cause
+  // for equipment like "Shuttle Cock" (totalQuantity 10, availableQuantity
+  // 10, zero actual Item rows ever registered via QR Management) is a data
+  // gap, not a stock shortage, and the message needs to say so distinctly.
+  test('a QR-registration gap (fewer Item rows than totalQuantity) gets its own distinct message', async () => {
+    const equipment = { id: 51, equipmentName: 'Shuttle Cock', availableQuantity: 10, totalQuantity: 10, decrement: jest.fn() };
+    Equipment.findByPk.mockResolvedValueOnce(equipment);
+    Item.findAll.mockResolvedValueOnce([]); // zero units ever registered
+    Item.count.mockResolvedValueOnce(0);
+
+    await expect(ctrl.createSelfRequest(selfReq([{ equipmentId: 51, quantity: 2 }]), mockRes())).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'ITEMS_NOT_REGISTERED',
+      message: expect.stringMatching(/QR code registered in QR Management/)
+    });
+    expect(equipment.decrement).not.toHaveBeenCalled();
+  });
+
+  test('a genuine stock shortage (registered units all Borrowed/Reserved) keeps the original message', async () => {
+    const equipment = { id: 1, equipmentName: 'Table Tennis Ball', availableQuantity: 12, totalQuantity: 12, decrement: jest.fn() };
+    Equipment.findByPk.mockResolvedValueOnce(equipment);
+    Item.findAll.mockResolvedValueOnce([{ id: 301, equipmentId: 1, itemCode: 'TTB-001-01' }]); // 1 of 2 requested
+    Item.count.mockResolvedValueOnce(12); // all 12 units are registered — nothing missing
+
+    await expect(ctrl.createSelfRequest(selfReq([{ equipmentId: 1, quantity: 2 }]), mockRes())).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/^Not enough stock for/)
+    });
   });
 });
 

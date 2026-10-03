@@ -546,11 +546,22 @@
     let category='All Categories',current=null;
 
     /* ---------- Stats ---------- */
-    // Catalog totals in units (same definition as the admin dashboard).
+    // Total/Available/Categories used to be summed here from /api/equipment's
+    // raw per-equipment counters — which drifted from what the admin
+    // dashboard showed for the same two numbers (e.g. 245 here vs 200 there)
+    // whenever an equipment's availableQuantity counter was higher than the
+    // QR codes actually registered for it (the same registration gap behind
+    // the "not enough stock" bug — see borrow.controller.js#createSelfRequest).
+    // The admin dashboard's figures come from the server's inventoryFigures()
+    // (server/controllers/dashboard.controller.js), which counts real,
+    // registered Item rows instead — the ground truth. loadMyActivity() below
+    // already fetches that same computation via /api/dashboard/me's `catalog`
+    // field; this just displays it instead of re-deriving a different number.
+    let catalogFigures={totalEquipment:0,availableEquipment:0,categories:0};
     function renderStats(){
-      $('statTotal').textContent=products.reduce((n,p)=>n+p.total,0);
-      $('statAvailable').textContent=products.reduce((n,p)=>n+Math.max(p.available,0),0);
-      $('statCategories').textContent=new Set(products.map(p=>p.category)).size;
+      $('statTotal').textContent=catalogFigures.totalEquipment;
+      $('statAvailable').textContent=catalogFigures.availableEquipment;
+      $('statCategories').textContent=catalogFigures.categories;
     }
 
     function loadEquipment(){
@@ -672,7 +683,7 @@
       Student:{needsValidId:false,docLabel:'Authorization Letter',docHint:'An authorization letter signed by your adviser or faculty member.'},
       External:{needsValidId:true,docLabel:'Approved Proposal / Request Letter',docHint:'An approved proposal or request letter for this borrowing.'}
     };
-    const DOC_REQ_DEFAULT={needsValidId:true,docLabel:'Approved Proposal / Authorization',docHint:'Images (JPG, PNG, WEBP) or PDF/DOCX — max 2MB.'};
+    const DOC_REQ_DEFAULT={needsValidId:true,docLabel:'Approved Proposal / Authorization',docHint:'Images (JPG, PNG, WEBP) or PDF/DOCX — max 10MB.'};
     let docReq=DOC_REQ_DEFAULT;
 
     function applyDocRequirements(borrowerCategory){
@@ -716,10 +727,12 @@
       }).catch(()=>{});
     }
 
+    // Uploads straight to Supabase Storage (see uploadBorrowerDocument in
+    // js/shared/api.js) instead of through this app's server — bypasses
+    // Vercel's 4.5MB-per-request body cap, so a document can be up to 10MB
+    // here instead of the old 2MB multipart-upload limit.
     function uploadDocument(fieldName,zoneId,titleId,file){
-      const formData=new FormData();
-      formData.append(fieldName,file);
-      return apiFetch('/api/borrowers/me/documents',{method:'POST',body:formData})
+      return uploadBorrowerDocument(fieldName,file)
         .then(status=>{
           uploadedValidId=status.validIdUploaded;
           uploadedAuthDoc=status.authorizationDocumentUploaded;
@@ -972,8 +985,9 @@
     applyDocRequirements(borrowerProfile&&borrowerProfile.borrowerCategory);
 
     function refreshCatalog(){
+      // Stats (Total/Available/Categories) are rendered from loadMyActivity's
+      // /api/dashboard/me response, not from this call — see renderStats().
       return loadEquipment().then(()=>{
-        renderStats();
         renderCategoryPanel();
         render();
       }).catch(err=>showToast('Could not load equipment: '+err.message,'danger'));
@@ -997,6 +1011,8 @@
         $('myRejected').textContent=d.mine.rejectedRequests;
         $('myReturned').textContent=d.mine.returnedEquipment;
         $('myActive').textContent=d.mine.borrowedUnits;
+        catalogFigures=d.catalog;
+        renderStats();
       }).catch(err=>showToast('Could not load your activity: '+err.message,'danger'));
     }
     [myYearSelect,mySemesterSelect].forEach(el=>el.addEventListener('change',loadMyActivity));
@@ -1012,6 +1028,16 @@
 
     refreshCatalog();
     loadMyActivity();
+
+    // Keep availability/stats current after changes made elsewhere (staff
+    // releasing/returning equipment, another borrower's request going
+    // through, QR codes being generated) — this page had no auto-refresh at
+    // all before, so it only ever showed a frozen snapshot from whenever it
+    // was first opened. Same pattern as the admin dashboard
+    // (client/pages/admin/dashboard.html): poll every 60s while the tab is
+    // visible, plus an immediate refresh when the tab regains focus.
+    setInterval(()=>{if(!document.hidden){refreshCatalog();loadMyActivity();}},60000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshCatalog();loadMyActivity();}});
   </script>
 </body>
 </html>

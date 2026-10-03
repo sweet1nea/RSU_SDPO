@@ -8,7 +8,7 @@
 // releaseDatetime/returnDatetime. Also covers the existing not-found path.
 
 jest.mock('../../models', () => ({
-  Item: { findOne: jest.fn(), findByPk: jest.fn() },
+  Item: { findOne: jest.fn(), findByPk: jest.fn(), findAll: jest.fn() },
   Equipment: { increment: jest.fn(), decrement: jest.fn() },
   Category: {},
   Borrower: {},
@@ -26,6 +26,21 @@ function mockRes() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// 2026-10 bug report: the QR Generation History table showed units of the
+// same equipment (same bulk-generate batch, identical createdAt) in
+// scrambled order, e.g. PPB-53-04, -07, -06, -05, -10 instead of ascending
+// by unit sequence — because the query only ever sorted by createdAt, which
+// ties within one batch. Locks in the id-ASC tiebreaker fix.
+describe('GET /api/qr/items (listItems)', () => {
+  test('orders by createdAt DESC, then id ASC to break same-batch ties', async () => {
+    Item.findAll.mockResolvedValueOnce([]);
+    await ctrl.listItems({}, mockRes());
+    expect(Item.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ order: [['createdAt', 'DESC'], ['id', 'ASC']] })
+    );
+  });
 });
 
 describe('GET /api/qr/lookup/:itemCode (lookup)', () => {

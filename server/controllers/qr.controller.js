@@ -34,7 +34,15 @@ function whereCode(code) {
 exports.listItems = async (req, res) => {
   const rows = await Item.findAll({
     include: [{ model: Equipment, as: 'equipment', include: [{ model: Category, as: 'category' }] }],
-    order: [['createdAt', 'DESC']]
+    // createdAt DESC keeps the most recently generated batch on top; a
+    // secondary sort by id ASC breaks ties *within* a batch (a bulk
+    // generate call gives every unit it creates the exact same createdAt
+    // timestamp, so without this, same-batch rows came back in whatever
+    // arbitrary order Postgres happened to return them in — e.g. a 10-unit
+    // batch showing ...-04, -07, -06, -05, -10 instead of -01..-10).
+    // Item ids are assigned in the same order generate() creates the units
+    // (start+1, start+2, ...), so id ASC is the unit-sequence order.
+    order: [['createdAt', 'DESC'], ['id', 'ASC']]
   });
   res.json({ success: true, data: rows.map(serializeItem) });
 };

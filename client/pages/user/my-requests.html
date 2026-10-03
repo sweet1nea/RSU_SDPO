@@ -26,6 +26,14 @@
     .requested-on{margin-top:2px;color:var(--color-text-500);font-size:12px}
     .badge{align-self:start;display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap}
     .badge.pending,.badge.acknowledged,.badge.for-approval{color:#a16207;background:#fef3c7}
+    .badge.needs-correction{color:#9a3412;background:#ffedd5}
+    .notice-correction{color:#9a3412;font-size:12px}
+    .correction-box{margin-top:10px;padding:10px 12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:8px;font-size:12px;line-height:1.5}
+    .correction-box b{display:block;margin-bottom:2px}
+
+    /* ---------- Re-upload Documents modal ---------- */
+    .wizard-field label{display:block;font-size:12px;font-weight:600;color:var(--color-text-600);margin-bottom:6px}
+    .wizard-field input[type=file]{width:100%;font-size:12px;border:1px solid var(--color-border);border-radius:8px;padding:8px 10px;background:var(--color-surface)}
     .badge.approved{color:#059669;background:#d1fae5}
     .badge.rejected{color:#dc2626;background:#fee2e2}
     .badge.cancelled{color:var(--color-text-500);background:var(--color-surface-muted)}
@@ -79,6 +87,30 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="reuploadOverlay" hidden>
+    <div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="reuploadTitle">
+      <div class="modal__header">
+        <div><p class="modal__title" id="reuploadTitle" style="font-size:18px">Re-upload Documents</p><p class="modal__subtitle">Upload a corrected file — this replaces what's currently on file for your account.</p></div>
+        <button type="button" class="modal__close" id="reuploadCloseBtn" aria-label="Close"><img src="../../assets/icons/icon-close.svg" alt=""></button>
+      </div>
+      <div class="modal__body">
+        <div class="wizard-field">
+          <label for="reuploadValidId">Valid ID (if applicable to your borrower type) — JPG, PNG, WEBP, PDF or DOCX, max 10MB</label>
+          <input type="file" id="reuploadValidId" accept="image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </div>
+        <div class="wizard-field" style="margin-top:14px">
+          <label for="reuploadAuthDoc">Authorization Document — JPG, PNG, WEBP, PDF or DOCX, max 10MB</label>
+          <input type="file" id="reuploadAuthDoc" accept="image/jpeg,image/png,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </div>
+        <p id="reuploadError" class="form-error" style="color:#dc2626;font-size:12px;min-height:14px;margin-top:10px"></p>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn-secondary" id="reuploadCancelBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="reuploadSubmitBtn">Upload</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toastStack"></div>
 
   <script src="../../js/shared/api.js"></script>
@@ -116,6 +148,12 @@
         status:t.status,
         reason:t.reason||null,
         cancelled:t.cancelledAt||null,
+        // Set only while still Pending/Acknowledged *after* SDPO returned it
+        // for correction — distinct from a rejection (reserved stock stays
+        // held and the request can still be approved once fixed). See
+        // server/controllers/borrow.controller.js#serialize.
+        needsCorrection:!!t.needsCorrection,
+        correctionNote:t.correctionNote||null,
         items:groupItems(t.items),
         total:t.items.length,
         returnDate:t.due+(t.dueTime?' '+t.dueTime:''),
@@ -155,12 +193,13 @@
       cards.innerHTML=rows.length?rows.map(r=>`<article class="request-card">
         <div class="request-card__head">
           <div><div class="request-id">Request #${esc(r.id)}</div><div class="requested-on">Requested: ${esc(r.date)}</div></div>
-          <span class="badge ${classFor(r.status)}">${icon[r.status]} ${esc(statusLabel(r.status))}</span>
+          <span class="badge ${r.needsCorrection?'needs-correction':classFor(r.status)}">${r.needsCorrection?'⚠':icon[r.status]} ${r.needsCorrection?'Needs Correction':esc(statusLabel(r.status))}</span>
         </div>
         <div class="request-card__body">
           <div class="field-label">Equipment Requested</div>
           <div class="items">${r.items.map(([n,q])=>`<span>${esc(n)} — <b>${q} ${q===1?'unit':'units'}</b></span>`).join('')}</div>
           <div class="total-line">Total: <b>${r.total} units</b></div>
+          ${r.needsCorrection?`<div class="correction-box"><b>SDPO returned this request for correction</b>${r.correctionNote?esc(r.correctionNote):'Review your submitted documents and re-upload below, then SDPO will review your request again.'}</div>`:''}
         </div>
         <div class="request-card__foot">
           <div class="return-row">
@@ -169,6 +208,7 @@
           </div>
           <div class="actions">
             <button type="button" class="btn btn-secondary detail-btn" data-id="${esc(r.id)}">View Details</button>
+            ${r.needsCorrection?`<button type="button" class="btn btn-primary reupload-btn" data-id="${esc(r.id)}">Re-upload Documents</button>`:''}
             ${['Pending','Acknowledged'].includes(r.status)?`<button type="button" class="btn btn-outline-danger cancel-btn" data-id="${esc(r.id)}">Cancel Request</button>`:''}
           </div>
         </div>
@@ -180,21 +220,61 @@
       detailModalTitle.textContent=`Request #${r.id}`;
       detailModalSub.textContent=`Requested: ${r.date}`;
       detailModalBody.innerHTML=`<div class="detail-grid">
-        <div class="detail-field"><small>Status</small><span class="badge ${classFor(r.status)}">${icon[r.status]} ${esc(statusLabel(r.status))}</span></div>
+        <div class="detail-field"><small>Status</small><span class="badge ${r.needsCorrection?'needs-correction':classFor(r.status)}">${r.needsCorrection?'⚠':icon[r.status]} ${r.needsCorrection?'Needs Correction':esc(statusLabel(r.status))}</span></div>
         <div class="detail-field"><small>Expected return</small><b>${esc(r.returnDate)}</b></div>
         <div class="detail-field"><small>Purpose</small><b>${esc(r.purpose)}</b></div>
         <div class="detail-field"><small>Total requested</small><b>${r.total} units</b></div>
       </div>
       <h3>Equipment requested</h3>
       <ul class="detail-items">${r.items.map(([n,q])=>`<li><span>${esc(n)}</span><b>${q} ${q===1?'unit':'units'}</b></li>`).join('')}</ul>
-      <div class="modal-note ${r.reason?'reject':''}">${r.reason?'Reason for rejection: '+esc(r.reason):esc(r.note||'')}</div>`;
-      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}`;
+      ${r.needsCorrection?`<div class="correction-box"><b>SDPO returned this request for correction</b>${r.correctionNote?esc(r.correctionNote):'Review your submitted documents and re-upload below, then SDPO will review your request again.'}</div>`:`<div class="modal-note ${r.reason?'reject':''}">${r.reason?'Reason for rejection: '+esc(r.reason):esc(r.note||'')}</div>`}`;
+      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${r.needsCorrection?'<button type="button" class="btn btn-primary" id="modalReuploadBtn">Re-upload Documents</button>':''}${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}`;
       detailModalOverlay.hidden=false;
       $('modalCloseBtn').addEventListener('click',closeDetails);
       const cancelBtn=$('modalCancelBtn');
       if(cancelBtn)cancelBtn.addEventListener('click',()=>cancelRequest(r.id));
+      const reuploadBtn=$('modalReuploadBtn');
+      if(reuploadBtn)reuploadBtn.addEventListener('click',()=>{closeDetails();openReupload(r.id);});
     }
     function closeDetails(){detailModalOverlay.hidden=true;}
+
+    // Documents live on the borrower's PROFILE (one Valid ID + one
+    // Authorization Document), not per-transaction — the same pair every
+    // request's review checks — so re-uploading here fixes whichever
+    // pending request(s) needed correction; there's no separate "upload for
+    // this request" endpoint. POSTs to the same /api/borrowers/me/documents
+    // endpoint the new-request wizard uses (equipment-showroom-figma.html).
+    const reuploadOverlay=$('reuploadOverlay'),reuploadError=$('reuploadError'),reuploadSubmitBtn=$('reuploadSubmitBtn');
+    let reuploadRequestId=null;
+    function openReupload(id){
+      reuploadRequestId=id;
+      $('reuploadValidId').value='';$('reuploadAuthDoc').value='';
+      reuploadError.textContent='';
+      reuploadOverlay.hidden=false;
+    }
+    function closeReupload(){reuploadOverlay.hidden=true;}
+    $('reuploadCloseBtn').addEventListener('click',closeReupload);
+    $('reuploadCancelBtn').addEventListener('click',closeReupload);
+    reuploadOverlay.addEventListener('click',e=>{if(e.target===reuploadOverlay)closeReupload();});
+    reuploadSubmitBtn.addEventListener('click',()=>{
+      const validId=$('reuploadValidId').files[0],authDoc=$('reuploadAuthDoc').files[0];
+      if(!validId&&!authDoc){reuploadError.textContent='Choose at least one file to upload.';return;}
+      reuploadError.textContent='';reuploadSubmitBtn.disabled=true;reuploadSubmitBtn.textContent='Uploading…';
+      // Uploads straight to Supabase Storage (see uploadBorrowerDocument in
+      // js/shared/api.js) rather than through this app's server — lets a
+      // file be up to 10MB instead of the old 2MB multipart-upload cap.
+      // Both fields upload in parallel; either can fail independently.
+      Promise.all([
+        validId?uploadBorrowerDocument('validId',validId):Promise.resolve(),
+        authDoc?uploadBorrowerDocument('authorizationDocument',authDoc):Promise.resolve()
+      ])
+        .then(()=>{
+          closeReupload();
+          showToast('Documents updated — SDPO will review your request again.','success');
+        })
+        .catch(err=>{reuploadError.textContent=err.message;})
+        .finally(()=>{reuploadSubmitBtn.disabled=false;reuploadSubmitBtn.textContent='Upload';});
+    });
     function cancelRequest(id){
       const r=requests.find(x=>x.id===id);
       if(!confirm('Cancel request '+r.id+'?'))return;
@@ -221,6 +301,7 @@
       const b=e.target.closest('[data-id]');
       if(!b)return;
       if(b.classList.contains('cancel-btn'))return cancelRequest(b.dataset.id);
+      if(b.classList.contains('reupload-btn'))return openReupload(b.dataset.id);
       openDetails(b.dataset.id);
     });
     document.querySelectorAll('[data-close-modal]').forEach(btn=>btn.addEventListener('click',closeDetails));

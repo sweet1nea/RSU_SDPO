@@ -175,16 +175,43 @@ async function uploadToStorage(folder, field, ownerId, file) {
   return key;
 }
 
+// Best-effort cleanup only — never lets a storage hiccup block the upload
+// that already succeeded. A stale document (nothing in the app points to
+// it anymore) is harmless to the review workflow either way; this just
+// stops it from sitting in the bucket forever.
+async function deleteStorageObjectQuietly(key) {
+  if (!key) return;
+  try {
+    await getClient().storage.from(DOCUMENTS_BUCKET).remove([key]);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`Failed to delete superseded document "${key}" from storage:`, err.message || err);
+  }
+}
+
 // Shared by both upload entry points below. ownerId keys the storage path —
 // the borrower's own userId when known, so a walk-in borrower's documents
 // land under their own id in Storage regardless of which staff member
 // happened to upload them (not the staff member's own id).
+//
+// Documents live on the Borrower record itself, not per-transaction (every
+// transaction's document review reads these same two fields live — see
+// exports.downloadDocument) — there is no history/versioning. Re-uploading
+// (e.g. after a request was returned for correction) therefore replaces
+// what every pending and past transaction shows for this borrower, not
+// just the one that triggered the re-upload. Each upload writes to a new,
+// uniquely-named key (see uploadToStorage) and only swaps the borrower's
+// pointer once that succeeds — the previous object is then deleted from
+// Storage so it doesn't sit there unreferenced indefinitely.
 async function saveUploadedDocuments(borrower, ownerId, files) {
   if (!files.validId && !files.authorizationDocument) {
     const err = new Error('No file uploaded — attach a valid ID or authorization document');
     err.statusCode = 400;
     throw err;
   }
+
+  const previousValidId = borrower.validIdPath;
+  const previousAuthDoc = borrower.authorizationDocumentPath;
 
   if (files.validId) {
     borrower.validIdPath = await uploadToStorage('valid_ids', 'validId', ownerId, files.validId[0]);
@@ -199,6 +226,16 @@ async function saveUploadedDocuments(borrower, ownerId, files) {
   }
   await borrower.save();
   await borrower.reload();
+
+  // Only after the save commits — the borrower record must already point
+  // at the new file before the old one is removed.
+  if (files.validId && previousValidId && previousValidId !== borrower.validIdPath) {
+    await deleteStorageObjectQuietly(previousValidId);
+  }
+  if (files.authorizationDocument && previousAuthDoc && previousAuthDoc !== borrower.authorizationDocumentPath) {
+    await deleteStorageObjectQuietly(previousAuthDoc);
+  }
+
   return borrower;
 }
 
@@ -209,6 +246,147 @@ exports.uploadDocuments = async (req, res) => {
   const borrower = await findOwnBorrower(req);
   const saved = await saveUploadedDocuments(borrower, req.user.id, req.files || {});
   res.json({ success: true, data: documentStatus(saved) });
+};
+
+// ---- Direct-to-Supabase-Storage upload (2026-10-03) ----
+//
+// The route above (uploadDocuments) sends the file through this server in
+// one multipart request, which is why it's capped at 2MB — Vercel hard-caps
+// every serverless function's total request body at 4.5MB, shared between
+// both document fields in that one request (see uploadMiddleware.js). The
+// two endpoints below let the borrower's browser upload straight to
+// Supabase Storage instead: this server only ever hands out a short-lived
+// signed upload URL (/sign) and, once Storage confirms the file actually
+// landed (/confirm), swaps the borrower's pointer to it — the file itself
+// never touches a Vercel function, so the 4.5MB ceiling doesn't apply and
+// the cap below (MAX_UPLOAD_BYTES) is a plain app-level choice again.
+//
+// Nothing from /sign is trusted: a borrower could ask for a signed URL and
+// never use it, or (in principle) tamper with what they upload before
+// calling /confirm. /confirm re-reads the object's real size and MIME type
+// back from Storage itself before accepting it — not whatever the browser
+// claimed — and deletes + rejects anything that doesn't hold up.
+const ALLOWED_UPLOAD_MIME = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+];
+const EXT_BY_UPLOAD_MIME = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
+};
+// field (matches the multer field names used by the request-body route
+// above, 'validId'/'authorizationDocument') -> [storage folder, Borrower column]
+const UPLOAD_FIELD_MAP = {
+  validId: ['valid_ids', 'validIdPath'],
+  authorizationDocument: ['authorization_documents', 'authorizationDocumentPath']
+};
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB — see the file-level comment above for why this no longer has to match Vercel's limit.
+
+function assertKnownField(field) {
+  if (!UPLOAD_FIELD_MAP[field]) {
+    const err = new Error('field must be "validId" or "authorizationDocument"');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+exports.createDocumentUploadUrl = async (req, res) => {
+  await findOwnBorrower(req); // 403s if this account has no Borrower row, same as the request-body route
+  const { field, contentType, size } = req.body;
+  assertKnownField(field);
+  if (!ALLOWED_UPLOAD_MIME.includes(contentType)) {
+    const err = new Error('Only JPG, PNG, WEBP, PDF, or DOCX files are allowed');
+    err.statusCode = 400;
+    throw err;
+  }
+  const numericSize = Number(size);
+  if (!Number.isFinite(numericSize) || numericSize <= 0) {
+    const err = new Error('size (in bytes) is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  // A first, cheap rejection on the declared size — purely for a fast UI
+  // error before the browser spends time uploading. Not relied on for
+  // anything: confirmDocumentUpload re-checks the real size Storage
+  // actually received before this upload is ever accepted.
+  if (numericSize > MAX_UPLOAD_BYTES) {
+    const err = new Error(`Files must be ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB or smaller.`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const [folder] = UPLOAD_FIELD_MAP[field];
+  const ext = EXT_BY_UPLOAD_MIME[contentType];
+  const key = path.posix.join(folder, `borrower-${req.user.id}-${field}-${Date.now()}${ext}`);
+
+  const { data, error } = await getClient().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(key);
+  if (error) {
+    const err = new Error(`Failed to prepare upload: ${error.message}`);
+    err.statusCode = 502;
+    throw err;
+  }
+
+  res.json({ success: true, data: { uploadUrl: data.signedUrl, key, field } });
+};
+
+exports.confirmDocumentUpload = async (req, res) => {
+  const borrower = await findOwnBorrower(req);
+  const { field, key } = req.body;
+  assertKnownField(field);
+  const [folder, column] = UPLOAD_FIELD_MAP[field];
+
+  // The key must be one this exact borrower could actually have been
+  // handed by createDocumentUploadUrl above — stops one borrower confirming
+  // (and thereby pointing their own record at) an arbitrary storage path,
+  // including another borrower's file.
+  const expectedPrefix = `${folder}/borrower-${req.user.id}-${field}-`;
+  if (typeof key !== 'string' || !key.startsWith(expectedPrefix)) {
+    const err = new Error('That upload key does not belong to you');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const filename = key.slice(folder.length + 1);
+  const { data: listing, error: listError } = await getClient().storage.from(DOCUMENTS_BUCKET).list(folder, { search: filename });
+  const found = !listError && listing ? listing.find((f) => f.name === filename) : null;
+  if (!found) {
+    const err = new Error('Upload not found in storage — it may have failed or not finished yet');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Authoritative checks against what Storage actually received, not
+  // whatever createDocumentUploadUrl was told beforehand.
+  const actualSize = found.metadata && found.metadata.size;
+  if (Number.isFinite(actualSize) && actualSize > MAX_UPLOAD_BYTES) {
+    await deleteStorageObjectQuietly(key);
+    const err = new Error(`Files must be ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB or smaller.`);
+    err.statusCode = 400;
+    throw err;
+  }
+  const actualMime = found.metadata && found.metadata.mimetype;
+  if (actualMime && !ALLOWED_UPLOAD_MIME.includes(actualMime)) {
+    await deleteStorageObjectQuietly(key);
+    const err = new Error('Only JPG, PNG, WEBP, PDF, or DOCX files are allowed');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const previous = borrower[column];
+  borrower[column] = key;
+  await borrower.save();
+  await borrower.reload();
+  if (previous && previous !== key) {
+    await deleteStorageObjectQuietly(previous);
+  }
+
+  res.json({ success: true, data: documentStatus(borrower) });
 };
 
 // Staff-facing equivalent of the above, for a borrower who can't (or

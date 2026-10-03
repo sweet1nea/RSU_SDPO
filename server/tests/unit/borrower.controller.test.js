@@ -29,10 +29,22 @@ function mockRes() {
   return { json: jest.fn(), status: jest.fn().mockReturnThis(), set: jest.fn(), send: jest.fn() };
 }
 
-function makeStorageClient({ uploadError = null, downloadResult = null, downloadError = null } = {}) {
+function makeStorageClient({
+  uploadError = null,
+  downloadResult = null,
+  downloadError = null,
+  removeError = null,
+  signedUrlResult = { signedUrl: 'https://supabase.test/storage/v1/object/upload/sign/x?token=abc' },
+  signedUrlError = null,
+  listResult = [],
+  listError = null
+} = {}) {
   const upload = jest.fn().mockResolvedValue({ error: uploadError });
   const download = jest.fn().mockResolvedValue({ data: downloadResult, error: downloadError });
-  const from = jest.fn().mockReturnValue({ upload, download });
+  const remove = jest.fn().mockResolvedValue({ error: removeError });
+  const createSignedUploadUrl = jest.fn().mockResolvedValue({ data: signedUrlResult, error: signedUrlError });
+  const list = jest.fn().mockResolvedValue({ data: listResult, error: listError });
+  const from = jest.fn().mockReturnValue({ upload, download, remove, createSignedUploadUrl, list });
   return { storage: { from } };
 }
 
@@ -287,6 +299,76 @@ describe('POST /api/borrowers/me/documents (uploadDocuments)', () => {
     ).rejects.toMatchObject({ statusCode: 502, message: expect.stringContaining('bucket not found') });
     expect(borrower.save).not.toHaveBeenCalled();
   });
+
+  // 2026-10-03: documents live on the Borrower record, not per-transaction —
+  // re-uploading (e.g. after a request was returned for correction) used to
+  // leave the previous file sitting in Storage forever, unreferenced by
+  // anything. Each upload now writes a new key and only then deletes
+  // whichever key it replaced.
+  describe('superseded document cleanup', () => {
+    test('deletes the previous file from storage once the new one is saved', async () => {
+      const borrower = {
+        id: 1,
+        validIdPath: 'valid_ids/borrower-9-validId-1000.jpg',
+        authorizationDocumentPath: null,
+        save: jest.fn().mockResolvedValue(),
+        reload: jest.fn().mockResolvedValue()
+      };
+      Borrower.findOne.mockResolvedValue(borrower);
+      const client = makeStorageClient();
+      getClient.mockReturnValue(client);
+
+      await ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile('new-front.jpg')] } }, mockRes());
+
+      expect(client.storage.from).toHaveBeenCalledWith('borrower-documents');
+      expect(client.storage.from().remove).toHaveBeenCalledWith(['valid_ids/borrower-9-validId-1000.jpg']);
+    });
+
+    test('never deletes anything on a borrower\'s very first upload (no previous file)', async () => {
+      const borrower = { id: 1, validIdPath: null, authorizationDocumentPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+      Borrower.findOne.mockResolvedValue(borrower);
+      const client = makeStorageClient();
+      getClient.mockReturnValue(client);
+
+      await ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile()] } }, mockRes());
+
+      expect(client.storage.from().remove).not.toHaveBeenCalled();
+    });
+
+    test('leaves the OTHER field\'s existing document alone when only one field is re-uploaded', async () => {
+      const borrower = {
+        id: 1,
+        validIdPath: 'valid_ids/old.jpg',
+        authorizationDocumentPath: 'authorization_documents/old.pdf',
+        save: jest.fn().mockResolvedValue(),
+        reload: jest.fn().mockResolvedValue()
+      };
+      Borrower.findOne.mockResolvedValue(borrower);
+      const client = makeStorageClient();
+      getClient.mockReturnValue(client);
+
+      await ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile('new.jpg')] } }, mockRes());
+
+      expect(client.storage.from().remove).toHaveBeenCalledTimes(1);
+      expect(client.storage.from().remove).toHaveBeenCalledWith(['valid_ids/old.jpg']);
+    });
+
+    test('a failed deletion of the old file never blocks the response — the new upload already succeeded', async () => {
+      const borrower = {
+        id: 1,
+        validIdPath: 'valid_ids/old.jpg',
+        authorizationDocumentPath: null,
+        save: jest.fn().mockResolvedValue(),
+        reload: jest.fn().mockResolvedValue()
+      };
+      Borrower.findOne.mockResolvedValue(borrower);
+      getClient.mockReturnValue(makeStorageClient({ removeError: { message: 'network blip' } }));
+
+      const res = mockRes();
+      await expect(ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile()] } }, res)).resolves.toBeUndefined();
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
 });
 
 describe('POST /api/borrowers/:id/documents (uploadDocumentsForBorrower)', () => {
@@ -433,5 +515,167 @@ describe('GET /api/borrowers/:id/documents/:type (downloadDocument)', () => {
     expect(res.set).toHaveBeenCalledWith('Content-Type', 'image/jpeg');
     expect(res.send).toHaveBeenCalledTimes(1);
     expect(Buffer.isBuffer(res.send.mock.calls[0][0])).toBe(true);
+  });
+});
+
+// 2026-10-03: direct-to-Supabase-Storage upload — the borrower's browser
+// uploads straight to Storage with a signed URL (bypassing Vercel's
+// 4.5MB-per-request body cap entirely), then this server confirms what
+// Storage actually received before trusting it.
+describe('POST /api/borrowers/me/documents/sign (createDocumentUploadUrl)', () => {
+  function req(body, userId = 9) {
+    return { user: { id: userId }, body };
+  }
+
+  test('rejects with 403 when the account has no Borrower row', async () => {
+    Borrower.findOne.mockResolvedValue(null);
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'validId', contentType: 'image/jpeg', size: 1000 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  test('rejects an unknown field name', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'somethingElse', contentType: 'image/jpeg', size: 1000 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('rejects a disallowed content type', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'validId', contentType: 'application/zip', size: 1000 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('rejects a missing or non-positive size', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'validId', contentType: 'image/jpeg' }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'validId', contentType: 'image/jpeg', size: 0 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  test('rejects a declared size over the 10MB cap, before ever requesting a signed URL', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    const client = makeStorageClient();
+    getClient.mockReturnValue(client);
+
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'authorizationDocument', contentType: 'application/pdf', size: 11 * 1024 * 1024 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/10MB/) });
+    expect(client.storage.from().createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  test('propagates a 502 when Supabase Storage fails to create the signed URL', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    getClient.mockReturnValue(makeStorageClient({ signedUrlError: { message: 'bucket not found' } }));
+
+    await expect(
+      ctrl.createDocumentUploadUrl(req({ field: 'validId', contentType: 'image/jpeg', size: 1000 }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 502, message: expect.stringContaining('bucket not found') });
+  });
+
+  test('on success, returns the signed uploadUrl and a key scoped to this user/field', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1 });
+    const client = makeStorageClient({ signedUrlResult: { signedUrl: 'https://supabase.test/sign/xyz?token=abc' } });
+    getClient.mockReturnValue(client);
+
+    const res = mockRes();
+    await ctrl.createDocumentUploadUrl(req({ field: 'authorizationDocument', contentType: 'application/pdf', size: 500000 }), res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        uploadUrl: 'https://supabase.test/sign/xyz?token=abc',
+        key: expect.stringMatching(/^authorization_documents\/borrower-9-authorizationDocument-\d+\.pdf$/),
+        field: 'authorizationDocument'
+      }
+    });
+  });
+});
+
+describe('POST /api/borrowers/me/documents/confirm (confirmDocumentUpload)', () => {
+  function req(body, userId = 9) {
+    return { user: { id: userId }, body };
+  }
+
+  test('rejects a key that was not issued to this user/field (prefix check)', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1, save: jest.fn(), reload: jest.fn() });
+    await expect(
+      ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-999-validId-123.jpg' }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  test('rejects when the object does not actually exist in storage yet', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1, save: jest.fn(), reload: jest.fn() });
+    getClient.mockReturnValue(makeStorageClient({ listResult: [] }));
+
+    await expect(
+      ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-9-validId-123.jpg' }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('deletes and rejects a file that actually exceeds the size cap, regardless of what /sign was told', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1, save: jest.fn(), reload: jest.fn() });
+    const client = makeStorageClient({
+      listResult: [{ name: 'borrower-9-validId-123.jpg', metadata: { size: 11 * 1024 * 1024, mimetype: 'image/jpeg' } }]
+    });
+    getClient.mockReturnValue(client);
+
+    await expect(
+      ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-9-validId-123.jpg' }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/10MB/) });
+    expect(client.storage.from().remove).toHaveBeenCalledWith(['valid_ids/borrower-9-validId-123.jpg']);
+  });
+
+  test('deletes and rejects a file whose real MIME type is not allowed', async () => {
+    Borrower.findOne.mockResolvedValue({ id: 1, save: jest.fn(), reload: jest.fn() });
+    const client = makeStorageClient({
+      listResult: [{ name: 'borrower-9-validId-123.jpg', metadata: { size: 1000, mimetype: 'application/x-msdownload' } }]
+    });
+    getClient.mockReturnValue(client);
+
+    await expect(
+      ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-9-validId-123.jpg' }), mockRes())
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(client.storage.from().remove).toHaveBeenCalledWith(['valid_ids/borrower-9-validId-123.jpg']);
+  });
+
+  test('on success, saves the key, reloads, and deletes whichever file it replaced', async () => {
+    const borrower = {
+      id: 1,
+      validIdPath: 'valid_ids/borrower-9-validId-100.jpg',
+      save: jest.fn().mockResolvedValue(),
+      reload: jest.fn().mockResolvedValue()
+    };
+    Borrower.findOne.mockResolvedValue(borrower);
+    const client = makeStorageClient({
+      listResult: [{ name: 'borrower-9-validId-200.jpg', metadata: { size: 1000, mimetype: 'image/jpeg' } }]
+    });
+    getClient.mockReturnValue(client);
+
+    const res = mockRes();
+    await ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-9-validId-200.jpg' }), res);
+
+    expect(borrower.validIdPath).toBe('valid_ids/borrower-9-validId-200.jpg');
+    expect(borrower.save).toHaveBeenCalledTimes(1);
+    expect(client.storage.from().remove).toHaveBeenCalledWith(['valid_ids/borrower-9-validId-100.jpg']);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+  });
+
+  test('on a borrower\'s first-ever upload (no previous file), nothing is deleted', async () => {
+    const borrower = { id: 1, validIdPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+    Borrower.findOne.mockResolvedValue(borrower);
+    const client = makeStorageClient({
+      listResult: [{ name: 'borrower-9-validId-200.jpg', metadata: { size: 1000, mimetype: 'image/jpeg' } }]
+    });
+    getClient.mockReturnValue(client);
+
+    await ctrl.confirmDocumentUpload(req({ field: 'validId', key: 'valid_ids/borrower-9-validId-200.jpg' }), mockRes());
+
+    expect(client.storage.from().remove).not.toHaveBeenCalled();
   });
 });

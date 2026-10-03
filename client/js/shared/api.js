@@ -102,6 +102,35 @@ function newRequestKey() {
   return s;
 }
 
+// Uploads a borrower document (Valid ID or Authorization Document) straight
+// to Supabase Storage instead of through this app's own server — the only
+// way past Vercel's hard 4.5MB-per-request body cap (see
+// server/middlewares/uploadMiddleware.js). Three steps, all hidden behind
+// this one call: ask the server for a short-lived signed upload URL (/sign),
+// PUT the raw file to that URL directly, then tell the server the upload
+// finished (/confirm) so it can verify what Storage actually received and
+// swap the borrower's document pointer to it. `field` is 'validId' or
+// 'authorizationDocument'. Returns the same {validIdUploaded,...} shape
+// GET /api/borrowers/me/documents does.
+function uploadBorrowerDocument(field, file) {
+  return apiFetch('/api/borrowers/me/documents/sign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ field: field, contentType: file.type, size: file.size })
+  }).then(function (signed) {
+    return fetch(signed.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } }).then(function (putRes) {
+      if (!putRes.ok) {
+        throw new Error('Upload to storage failed (' + putRes.status + '). Please try again.');
+      }
+      return apiFetch('/api/borrowers/me/documents/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: field, key: signed.key })
+      });
+    });
+  });
+}
+
 function currentUser() {
   var raw = localStorage.getItem('rsuSdpoUser');
   return raw ? JSON.parse(raw) : null;

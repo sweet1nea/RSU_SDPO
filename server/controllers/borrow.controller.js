@@ -188,6 +188,23 @@ function lastLogFor(t, newStatus) {
   return logs.reduce((latest, l) => (new Date(l.changeDatetime) > new Date(latest.changeDatetime) ? l : latest));
 }
 
+// A "Return for Correction" review action (see exports.review below)
+// deliberately leaves the transaction's status unchanged — it always logs
+// oldStatus === newStatus === 'Acknowledged', same as the very first log
+// entry every transaction gets at creation time. The two are told apart by
+// order: the creation log is always the earliest log for a transaction, so
+// any LATER log with that same oldStatus===newStatus===Acknowledged shape
+// can only be a correction. There's no dedicated "action" column, so this
+// is the only signal available — if a third place ever logs that same
+// shape, it needs to be excluded here too.
+function lastCorrectionLog(t) {
+  if (!AWAITING_REVIEW.includes(t.transactionStatus)) return null;
+  const logs = (t.logs || []).slice().sort((a, b) => new Date(a.changeDatetime) - new Date(b.changeDatetime));
+  if (logs.length < 2) return null;
+  const latest = logs[logs.length - 1];
+  return latest.oldStatus === STATUS.ACKNOWLEDGED && latest.newStatus === STATUS.ACKNOWLEDGED ? latest : null;
+}
+
 // Dates are formatted in Philippine Time on the server (formatDate/
 // formatTime) and also returned as ISO instants so clients can format them
 // consistently without trusting their own clock/timezone.
@@ -196,6 +213,7 @@ function serialize(t) {
   const firstItem = (t.details || [])[0];
   const rejectionLog = t.transactionStatus === STATUS.REJECTED ? lastLogFor(t, STATUS.REJECTED) : null;
   const cancellationLog = t.transactionStatus === STATUS.CANCELLED ? lastLogFor(t, STATUS.CANCELLED) : null;
+  const correctionLog = lastCorrectionLog(t);
   return {
     dbId: t.id,
     borrowerId: t.borrowerId,
@@ -214,6 +232,12 @@ function serialize(t) {
     status: t.transactionStatus,
     reason: rejectionLog ? rejectionLog.remarks : null,
     cancelledAt: cancellationLog ? formatDate(cancellationLog.changeDatetime) : null,
+    // Set only while the request is still Pending/Acknowledged *after*
+    // being returned for correction — distinct from `reason` (Rejected
+    // only). Not the same as a rejection: reserved stock stays held, and
+    // the borrower is expected to fix something and let SDPO re-review it.
+    needsCorrection: !!correctionLog,
+    correctionNote: correctionLog ? correctionLog.remarks : null,
     receivedByBorrowerDatetime: t.receivedByBorrowerDatetime || null,
     review: t.reviewer ? t.reviewer.username : '—',
     approve: t.approver ? t.approver.username : '—',
@@ -469,6 +493,30 @@ exports.createSelfRequest = async (req, res) => {
           transaction: t
         });
         if (available.length < quantity) {
+          // Two different problems can produce this same shortfall, and they
+          // need two different messages: (1) every unit really is Borrowed/
+          // Reserved right now — a genuine stock shortage — or (2) fewer Item
+          // rows have ever been registered (via QR Management) than the
+          // equipment's own totalQuantity counter claims, e.g. "Shuttle
+          // Cock" showing 10/10 available with zero QR-registered units
+          // (2026-10 bug report). The old message read identically for
+          // both, which looked like a logic bug when it was really a data
+          // gap the SDPO needs to close by generating QR codes.
+          let registeredGap = null;
+          if (Number.isFinite(equipment.totalQuantity) && equipment.totalQuantity > 0) {
+            const registered = await Item.count({ where: { equipmentId }, transaction: t });
+            if (registered < equipment.totalQuantity) {
+              registeredGap = { registered, shortfall: equipment.totalQuantity - registered };
+            }
+          }
+          if (registeredGap) {
+            throw httpError(
+              409,
+              `"${equipment.equipmentName}" shows ${equipment.totalQuantity} total units, but only ${registeredGap.registered} have a QR code registered in QR Management (${available.length} of those are currently available). Generate QR codes for the remaining ${registeredGap.shortfall} unit(s) before they can be borrowed.`,
+              'ITEMS_NOT_REGISTERED',
+              { registered: registeredGap.registered, totalQuantity: equipment.totalQuantity, available: available.length, requested: quantity }
+            );
+          }
           throw httpError(409, `Not enough stock for "${equipment.equipmentName}" — ${available.length} available, ${quantity} requested`);
         }
 
