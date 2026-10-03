@@ -30,6 +30,14 @@
 
     .form-card{display:grid;gap:12px}
     label{display:grid;gap:4px;font-size:.8rem;color:#475569}
+    /* `label{display:grid}` above is an author rule, so it wins over the
+       browser's own `[hidden]{display:none}` default regardless of which
+       selector is more specific — author rules always beat user-agent
+       rules at the same importance. Without this, <label hidden> (e.g.
+       #signupCollegeOtherLabel before "Others" is picked) stays visible.
+       `[hidden]` here is also an author rule, so normal CSS specificity
+       applies between the two, and the attribute selector wins. */
+    [hidden]{display:none!important}
     label>span:first-child{font-size:10px;font-weight:500;letter-spacing:.25px;text-transform:uppercase;color:#4a5565}
     .field-group{display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px}
     .field-group input,.field-group select{flex:1;min-width:0;border:0;background:transparent;outline:none;color:#0f172a;font-size:14px}
@@ -135,22 +143,12 @@
             <div class="field-group" id="signupCollegeGroup">
               <select id="signupCollege">
                 <option value="">Select your college or unit...</option>
-                <optgroup label="Main Campus">
-                  <option>College of Arts and Sciences (CAS)</option>
-                  <option>College of Business and Accountancy (CBA)</option>
-                  <option>College of Education (CED)</option>
-                  <option>College of Engineering and Technology (CET)</option>
-                  <option>College of Computing, Multimedia Arts and Digital Innovation (CCMADI)</option>
-                  <option>College of Agriculture, Fisheries and Environmental Sciences (CAFES)</option>
-                  <option>Graduate Education and Professional Studies (GEPS)</option>
-                </optgroup>
-                <optgroup label="Satellite Campuses">
-                  <option>College of Social Development and Behavioral Sciences — RSU Romblon</option>
-                  <option>College of Public Affairs and Governance — RSU San Agustin</option>
-                  <option>College of Philippine Studies and Cultural Sciences — RSU Calatrava</option>
-                  <option>College of Marine Sciences and Aquatic Resources — RSU Sta. Maria</option>
-                  <option>College of Food Science and Nutrition — RSU Sta. Maria</option>
-                </optgroup>
+                <option>College of Arts and Sciences (CAS)</option>
+                <option>College of Business and Accountancy (CBA)</option>
+                <option>College of Education (CED)</option>
+                <option>College of Engineering and Technology (CET)</option>
+                <option>College of Computing, Multimedia Arts and Digital Innovation (CCMADI)</option>
+                <option>College of Agriculture, Fisheries and Environmental Sciences (CAFES)</option>
                 <option value="__other__">Others (please specify)</option>
               </select>
             </div>
