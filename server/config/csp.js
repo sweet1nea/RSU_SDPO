@@ -36,6 +36,18 @@ function buildContentSecurityPolicyDirectives() {
     // <a download> click, which isn't governed by these directives).
     'img-src': ["'self'", 'data:', 'blob:'],
     'frame-src': ["'self'", 'blob:'],
+    // Borrower document uploads (Valid ID / Authorization Document) go
+    // straight from the browser to Supabase Storage via a signed URL — see
+    // client/js/shared/api.js#uploadBorrowerDocument and
+    // server/controllers/borrower.controller.js#createDocumentUploadUrl —
+    // because Vercel caps a single request body at 4.5MB, too small for a
+    // document upload. Helmet's default connect-src is 'self' only, which
+    // silently blocked that browser-to-Supabase fetch() as a CSP violation:
+    // the request never left the browser, so it surfaced to the user as a
+    // bare "Failed to fetch" with no server-side error at all (2026-10-03
+    // report). SUPABASE_URL (e.g. https://<project-ref>.supabase.co) is the
+    // only other origin the client ever calls directly.
+    'connect-src': ["'self'", process.env.SUPABASE_URL].filter(Boolean),
     // This server is plain HTTP only (no TLS listener) in development.
     // Helmet's defaults assume HTTPS: it sends Strict-Transport-Security and
     // a CSP with upgrade-insecure-requests, which tell the browser to force

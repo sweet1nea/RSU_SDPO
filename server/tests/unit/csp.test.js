@@ -42,4 +42,35 @@ describe('buildContentSecurityPolicyDirectives', () => {
   test('object-src stays at helmet\'s strict default (\'none\') — this fix does not widen it', () => {
     expect(directives['object-src']).toEqual(["'none'"]);
   });
+
+  // Regression coverage for a real bug found 2026-10-03: borrower document
+  // uploads (Valid ID / Authorization Document) go straight from the
+  // browser to Supabase Storage via a signed URL (see
+  // client/js/shared/api.js#uploadBorrowerDocument), bypassing this
+  // server's own 4.5MB Vercel body limit. Helmet's default connect-src is
+  // 'self' only, so the browser silently blocked that cross-origin fetch()
+  // as a CSP violation — no server-side request, no parsed API error, just
+  // a bare "Failed to fetch" shown to the borrower with nothing to debug.
+  describe('connect-src (Supabase Storage direct upload)', () => {
+    const ORIGINAL_SUPABASE_URL = process.env.SUPABASE_URL;
+    afterEach(() => {
+      process.env.SUPABASE_URL = ORIGINAL_SUPABASE_URL;
+    });
+
+    test('allows the configured SUPABASE_URL in addition to same-origin', () => {
+      process.env.SUPABASE_URL = 'https://elazuiszetwadorgperc.supabase.co';
+      jest.resetModules();
+      const { buildContentSecurityPolicyDirectives: rebuild } = require('../../config/csp');
+      const rebuilt = rebuild();
+      expect(rebuilt['connect-src']).toEqual(expect.arrayContaining(["'self'", 'https://elazuiszetwadorgperc.supabase.co']));
+    });
+
+    test('still scopes to self even if SUPABASE_URL is unset (no crash, no accidental wildcard)', () => {
+      delete process.env.SUPABASE_URL;
+      jest.resetModules();
+      const { buildContentSecurityPolicyDirectives: rebuild } = require('../../config/csp');
+      const rebuilt = rebuild();
+      expect(rebuilt['connect-src']).toEqual(["'self'"]);
+    });
+  });
 });
