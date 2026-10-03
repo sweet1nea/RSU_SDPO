@@ -116,7 +116,16 @@
       background-repeat:no-repeat;
     }
     .borrow-flow.open{display:block}
-    .close-flow{position:fixed;top:16px;right:18px;border:0;border-radius:50%;height:34px;width:34px;background:#fff;color:#344054;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;cursor:pointer}
+    /* .borrow-flow is itself the scrolling container (overflow:auto above,
+       since it covers the whole viewport and holds a tall multi-step form).
+       Without this, the page underneath stayed scrollable too — scrolling
+       with the cursor over the form mostly scrolled the form, but reaching
+       either end of it let the scroll "chain" through to the page behind,
+       and the page's own scrollbar visibly moved along with it (2026-10-03
+       report: "when I scroll up or down, the scroll bar on the background
+       moves"). body.flow-open is toggled alongside .borrow-flow.open in JS. */
+    body.flow-open{overflow:hidden}
+    .close-flow{position:fixed;top:16px;right:18px;border:0;border-radius:50%;height:34px;width:34px;display:flex;align-items:center;justify-content:center;background:#fff;color:#344054;font-size:22px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:5;cursor:pointer}
     .wizard-shell{max-width:900px;margin:0 auto;padding:56px 24px 48px}
     .wizard-letterhead{display:flex;align-items:center;gap:12px;padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--line)}
     .wizard-letterhead img{width:44px;height:44px;object-fit:contain;flex-shrink:0;border:1px solid var(--line);border-radius:8px;background:#fff;padding:4px}
@@ -204,7 +213,7 @@
        with no explanation. */
     .equip-cap-note{font-size:11px;font-weight:500;color:var(--muted)}
     .equip-row__stepper{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px}
-    .equip-row__stepper button{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:14px;line-height:1;cursor:pointer;color:#1d293d}
+    .equip-row__stepper button{width:28px;height:28px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d293d}
     .equip-row__stepper button:disabled{opacity:.4;cursor:not-allowed}
     .equip-row__stepper span{display:inline-block;width:22px;text-align:center;font-size:13px;font-weight:600}
     .equip-row__remove{width:28px;height:28px;border:1px solid #fecaca;background:#fff5f5;border-radius:8px;cursor:pointer;flex-shrink:0}
@@ -752,13 +761,29 @@
     let equipmentRows=[],rowSeq=0;
     const productById=id=>products.find(p=>p.id===id);
 
-    function equipmentOptionsHtml(selectedId){
+    // Two rows can reference the same equipment (e.g. the borrower wants
+    // Agility Cone split across rows for some reason, or just picked it
+    // twice) — the server already merges those into one line and checks
+    // the combined quantity against real stock (see
+    // borrow.controller.js#createSelfRequest, "Merge repeated lines for
+    // the same equipment"), but the form itself still showed every row's
+    // "Available"/cap as if it alone owned the full stock, e.g. three
+    // Agility Cone rows all independently reading "21 left" (2026-10-03
+    // report: "it should change and adjust real time"). This sums what
+    // every *other* row already claims of that equipment so each row's own
+    // display reflects what's actually still available to IT.
+    function reservedByOtherRows(equipmentId,excludeRowId){
+      return equipmentRows.filter(r=>r.equipmentId===equipmentId&&r.rowId!==excludeRowId).reduce((sum,r)=>sum+(r.quantity||0),0);
+    }
+
+    function equipmentOptionsHtml(selectedId,excludeRowId){
       const opts=products.map(p=>{
-        const cap=maxBorrowableUnits(p.available,p.total);
-        const blocked=p.available>0&&cap===0;
-        const disabled=!p.available||blocked;
+        const available=Math.max(0,p.available-reservedByOtherRows(p.id,excludeRowId));
+        const cap=maxBorrowableUnits(available,p.total);
+        const blocked=available>0&&cap===0;
+        const disabled=!available||blocked;
         const suffix=blocked?' — below minimum stock':cap>0?` — max ${cap} per request`:'';
-        return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${p.available})${suffix}</option>`;
+        return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${available})${suffix}</option>`;
       }).join('');
       return `<option value="">Select equipment...</option>${opts}`;
     }
@@ -767,7 +792,7 @@
       const list=$('equipmentList');
       list.innerHTML=equipmentRows.length?equipmentRows.map(row=>{
         const product=productById(row.equipmentId);
-        const available=product?product.available:0;
+        const available=product?Math.max(0,product.available-reservedByOtherRows(row.equipmentId,row.rowId)):0;
         const level=product?stockLevel(available):'available';
         const cap=product?maxBorrowableUnits(available,product.total):0;
         const minBlocked=product&&cap===0;
@@ -780,7 +805,7 @@
         if(product&&row.quantity>cap&&cap>0)row.quantity=cap;
         return `<div class="equip-row" data-row="${row.rowId}">
           <div class="equip-row__main">
-            <select class="equip-row__select">${equipmentOptionsHtml(row.equipmentId)}</select>
+            <select class="equip-row__select">${equipmentOptionsHtml(row.equipmentId,row.rowId)}</select>
             <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Max ${cap} per request</span>`:''}`:''}</div>
             ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — choose a different item.</div>':''}
           </div>
@@ -859,6 +884,7 @@
     }
 
     function updateStepValidity(){
+      saveDraft();
       $('toStep1').disabled=!$('acknowledge').checked;
       const hasEquip=equipmentRows.length>0&&equipmentRows.every(r=>r.equipmentId&&r.quantity>0);
       const returnDateOk=$('returnDateInput').value&&$('returnDateInput').value>=todayLocalDateStr();
@@ -904,6 +930,70 @@
     // One idempotency key per filled-in request: resubmitting the same form
     // (double-click, retry after a network error) can't create a duplicate.
     let requestKey=null;
+    // Also locks/unlocks the page behind the form so it can't scroll (or be
+    // scrolled into) while the form is open — see .body.flow-open above.
+    function openBorrowFlow(){borrowFlow.classList.add('open');document.body.classList.add('flow-open');}
+    function closeBorrowFlow(){borrowFlow.classList.remove('open');document.body.classList.remove('flow-open');}
+
+    /* ---------- Draft autosave (2026-10-03 report) ----------
+       A hard refresh reloads the whole page, which wipes every JS variable
+       — there's no way to stop that. What was actually fixable: the form
+       silently threw everything away with no warning and nothing to come
+       back to. This saves the in-progress wizard (which equipment/
+       quantities, purpose, return date/time, which step) to sessionStorage
+       on every change, and restores it automatically the next time this
+       page loads in the same tab. Uploaded documents don't need saving
+       here — those already live on the server and checkExistingDocuments()
+       re-fetches them — only a file picked but not yet uploaded is lost on
+       refresh, which no amount of client-side storage can prevent (the
+       browser never hands JS the file's bytes back after a reload). */
+    const DRAFT_KEY='rsuSdpoBorrowDraft';
+    function saveDraft(){
+      if(!borrowFlow.classList.contains('open'))return;
+      try{
+        sessionStorage.setItem(DRAFT_KEY,JSON.stringify({
+          equipmentRows,wizardStep,
+          purpose:$('purposeInput').value,
+          returnDate:$('returnDateInput').value,
+          returnTime:$('returnTimeInput').value,
+          acknowledge:$('acknowledge').checked
+        }));
+      }catch(e){/* storage unavailable/full — the form still works, it just won't survive a refresh */}
+    }
+    function clearDraft(){try{sessionStorage.removeItem(DRAFT_KEY);}catch(e){}}
+    function restoreDraftIfAny(){
+      let draft;
+      try{draft=JSON.parse(sessionStorage.getItem(DRAFT_KEY)||'null');}catch(e){draft=null;}
+      if(!draft)return;
+      // Equipment may have been removed/renamed since the draft was saved —
+      // only restore rows that still resolve to a real product.
+      const rows=(draft.equipmentRows||[]).filter(r=>r.equipmentId&&productById(r.equipmentId));
+      if(!rows.length){clearDraft();return;}
+      equipmentRows=rows;
+      rowSeq=Math.max(0,...rows.map(r=>r.rowId));
+      $('purposeInput').value=draft.purpose||'';
+      $('returnDateInput').value=draft.returnDate||'';
+      $('returnTimeInput').value=draft.returnTime||'';
+      $('acknowledge').checked=!!draft.acknowledge;
+      requestKey=newRequestKey();
+      openBorrowFlow();
+      renderEquipmentList();
+      showWizardStep(Math.min(draft.wizardStep||0,3));
+      checkExistingDocuments();
+      updateStepValidity();
+      showToast('Picked up where you left off — your borrowing request was restored.','success');
+    }
+    // beforeunload can't stop a refresh outright or customize its message
+    // (browsers deliberately ignore any custom text here), but it does show
+    // the browser's own "leave site? changes may not be saved" prompt,
+    // which is the right outcome now that a confirmed refresh is recoverable
+    // anyway — this is just for the person who meant to click away entirely.
+    window.addEventListener('beforeunload',e=>{
+      if(!borrowFlow.classList.contains('open'))return;
+      e.preventDefault();
+      e.returnValue='';
+    });
+
     reqContinueBtn.addEventListener('click',()=>{
       reqModalOverlay.hidden=true;
       requestKey=newRequestKey();
@@ -913,13 +1003,13 @@
       $('returnDateInput').value='';
       $('returnTimeInput').value='';
       $('acknowledge').checked=false;
-      borrowFlow.classList.add('open');
+      openBorrowFlow();
       showWizardStep(0);
       checkExistingDocuments();
       updateStepValidity();
     });
-    $('closeFlow').addEventListener('click',()=>borrowFlow.classList.remove('open'));
-    $('backToEquipment').addEventListener('click',()=>borrowFlow.classList.remove('open'));
+    $('closeFlow').addEventListener('click',()=>{clearDraft();closeBorrowFlow();});
+    $('backToEquipment').addEventListener('click',()=>{clearDraft();closeBorrowFlow();});
     $('viewMyRequest').addEventListener('click',()=>{window.location.href='my-requests.html';});
 
     $('submitRequest').addEventListener('click',()=>{
@@ -937,6 +1027,7 @@
         body:JSON.stringify({items,purpose:$('purposeInput').value.trim()||null,expectedReturnDatetime,acknowledged:$('acknowledge').checked,requestKey})
       })
         .then(data=>{
+          clearDraft();
           $('successReqId').textContent=data.id;
           showWizardStep(4);
           // Stock and my-activity figures changed — refresh them from the server.
@@ -947,7 +1038,8 @@
         .catch(err=>{
           if(err.details&&err.details.restrictions){
             renderRestrictions(err.details.restrictions);
-            borrowFlow.classList.remove('open');
+            clearDraft();
+            closeBorrowFlow();
           }
           showToast(err.message,'danger');
           btn.disabled=false;
@@ -1026,7 +1118,10 @@
       applyDocRequirements(bp.borrowerCategory);
     });
 
-    refreshCatalog();
+    // restoreDraftIfAny() needs products loaded first (it resolves each
+    // saved row's equipmentId against productById()), so it's chained onto
+    // this initial load rather than running alongside it.
+    refreshCatalog().then(restoreDraftIfAny);
     loadMyActivity();
 
     // Keep availability/stats current after changes made elsewhere (staff

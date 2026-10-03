@@ -511,6 +511,18 @@
       el.addEventListener('keydown', (e) => {
         if (e.key === 'Backspace' && !el.value && codeDigits[i - 1]) codeDigits[i - 1].focus();
       });
+      // Let a copied 6-digit code be pasted into any box — fills every box
+      // from the start rather than only the one that was clicked, since a
+      // pasted code is always meant to fill the whole field.
+      el.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const digits = pasted.replace(/[^0-9]/g, '').slice(0, 6);
+        if (!digits) return;
+        digits.split('').forEach((d, idx) => { codeDigits[idx].value = d; });
+        const nextEmpty = codeDigits.findIndex((d) => !d.value);
+        (nextEmpty === -1 ? codeDigits[codeDigits.length - 1] : codeDigits[nextEmpty]).focus();
+      });
     });
     $('verifyForm').addEventListener('submit', async (e) => {
       e.preventDefault();
