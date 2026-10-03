@@ -796,8 +796,23 @@
         const available=Math.max(0,p.available-reservedByOtherRows(p.id,excludeRowId));
         const cap=maxBorrowableUnits(available,p.total);
         const blocked=available>0&&cap===0;
-        const disabled=!available||blocked;
-        const suffix=blocked?' — below minimum stock':cap>0?` — max ${cap} per request`:'';
+        // Rather than let someone add the same equipment to a second row
+        // and only find out afterward it pushes the request over its cap
+        // (2026-10-03 follow-up: "it shouldn't be clickable... because
+        // there's the adding of quantity at the side"), stop the dropdown
+        // from offering it in the first place once your OTHER rows already
+        // claim the full per-request cap for it — the +/- stepper on the
+        // row that already has it is the only way to go further, exactly
+        // like the equipment showroom's own quantity control. Uses the
+        // RAW p.available (not the row-adjusted `available` above) because
+        // that's what the server's cap check uses — see
+        // combinedQuantityForEquipment's comment. Never disables a row's
+        // OWN current selection — only picking it fresh into ANOTHER row.
+        const othersQty=reservedByOtherRows(p.id,excludeRowId);
+        const rawCap=maxBorrowableUnits(p.available,p.total);
+        const atCapElsewhere=p.id!==selectedId&&rawCap>0&&othersQty>=rawCap;
+        const disabled=!available||blocked||atCapElsewhere;
+        const suffix=blocked?' — below minimum stock':atCapElsewhere?` — already at max (${rawCap}) in your other row(s), use + there instead`:cap>0?` — max ${cap} per request`:'';
         return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${available})${suffix}</option>`;
       }).join('');
       return `<option value="">Select equipment...</option>${opts}`;
