@@ -28,8 +28,19 @@
     .role-tag{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:#ecfdf5;color:#02704f}
     .signup-title,.screen-title{margin:8px 0 0;font-size:.95rem;font-weight:600;color:#334155}
 
-    .form-card{display:grid;gap:12px}
-    label{display:grid;gap:4px;font-size:.8rem;color:#475569}
+    .form-card{display:grid;gap:12px;min-width:0}
+    /* A <select>'s intrinsic width in Chromium is based on its widest
+       <option> text (e.g. "College of Computing, Multimedia Arts and
+       Digital Innovation (CCMADI)"). Grid items default to min-width:auto,
+       which lets that intrinsic width push the whole single-column
+       .form-card grid wider than the fixed-width .card — every field then
+       visibly overflows the white card onto the background, not just the
+       college field, since the grid track is shared by the whole column.
+       min-width:0 at each level that would otherwise inherit the select's
+       natural size lets the grid track stay capped at the card's width and
+       the <select> truncate/ellipsis its own text instead.
+       (2026-10-03 report: "the textbox exceeds".) */
+    label{display:grid;gap:4px;font-size:.8rem;color:#475569;min-width:0}
     /* `label{display:grid}` above is an author rule, so it wins over the
        browser's own `[hidden]{display:none}` default regardless of which
        selector is more specific — author rules always beat user-agent
@@ -39,8 +50,8 @@
        applies between the two, and the attribute selector wins. */
     [hidden]{display:none!important}
     label>span:first-child{font-size:10px;font-weight:500;letter-spacing:.25px;text-transform:uppercase;color:#4a5565}
-    .field-group{display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px}
-    .field-group input,.field-group select{flex:1;min-width:0;border:0;background:transparent;outline:none;color:#0f172a;font-size:14px}
+    .field-group{display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;min-width:0}
+    .field-group input,.field-group select{flex:1;min-width:0;max-width:100%;border:0;background:transparent;outline:none;color:#0f172a;font-size:14px;text-overflow:ellipsis}
     .field-group input::placeholder{color:#717182}
     .field-group.invalid{border-color:#fda29b;background:#fef3f2}
     .field-icon{display:flex;flex-shrink:0;color:#99a1af}
