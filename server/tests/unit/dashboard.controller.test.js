@@ -226,6 +226,62 @@ describe('GET /api/dashboard/summary — category distribution', () => {
   });
 });
 
+describe('GET /api/dashboard/summary — chart fixes', () => {
+  test('category percentages always add up to exactly 100', async () => {
+    // 1/3 each rounds to 33+33+33 = 99 if rounded independently.
+    Equipment.findAll.mockResolvedValue([
+      makeEquipment({ totalQuantity: 10, category: { categoryName: 'A' } }),
+      makeEquipment({ totalQuantity: 10, category: { categoryName: 'B' } }),
+      makeEquipment({ totalQuantity: 10, category: { categoryName: 'C' } })
+    ]);
+    Transaction.findAll.mockResolvedValue([]);
+
+    const res = mockRes();
+    await ctrl.summary({ query: {} }, res);
+
+    const dist = res.json.mock.calls[0][0].data.categoryDistribution;
+    expect(dist.reduce((n, d) => n + d.percent, 0)).toBe(100);
+  });
+
+  test('categories with no units are left out of the distribution', async () => {
+    Equipment.findAll.mockResolvedValue([
+      makeEquipment({ totalQuantity: 12, category: { categoryName: 'Ball Sports' } }),
+      makeEquipment({ totalQuantity: 0, category: { categoryName: 'Empty Category' } })
+    ]);
+    Transaction.findAll.mockResolvedValue([]);
+
+    const res = mockRes();
+    await ctrl.summary({ query: {} }, res);
+
+    const dist = res.json.mock.calls[0][0].data.categoryDistribution;
+    expect(dist.map((d) => d.categoryName)).toEqual(['Ball Sports']);
+    expect(dist[0].percent).toBe(100);
+  });
+
+  test('trend max is a multiple of 4 so every y-axis label is a whole number', async () => {
+    Equipment.findAll.mockResolvedValue([]);
+    const now = new Date();
+    for (const units of [0, 1, 3, 7, 13, 30, 77]) {
+      Transaction.findAll.mockResolvedValue([
+        { releaseDatetime: now, returnDatetime: null, details: Array.from({ length: units }, (_, i) => ({ id: i })) }
+      ]);
+      const res = mockRes();
+      await ctrl.summary({ query: {} }, res);
+      const { max } = res.json.mock.calls[0][0].data.usageTrend;
+      expect(max % 4).toBe(0);
+      expect(max).toBeGreaterThanOrEqual(Math.max(units, 1));
+    }
+  });
+
+  test('trend returns one full date label per day for the chart tooltips', async () => {
+    Equipment.findAll.mockResolvedValue([]);
+    Transaction.findAll.mockResolvedValue([]);
+    const res = mockRes();
+    await ctrl.summary({ query: {} }, res);
+    expect(res.json.mock.calls[0][0].data.usageTrend.dates).toHaveLength(7);
+  });
+});
+
 describe('GET /api/dashboard/summary — semester selection', () => {
   test('requests made in the selected semester are counted; the term is reported back', async () => {
     Equipment.findAll.mockResolvedValue([]);

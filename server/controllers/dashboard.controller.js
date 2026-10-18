@@ -14,10 +14,33 @@ const { STATUS, AWAITING_REVIEW, POST_APPROVAL, OPEN_REQUEST, OUT_WITH_BORROWER 
 //     the selected academic year + semester (helpers/academicTerm.js),
 //     bounded in Philippine Time.
 
+// Rounds up to a multiple of 4 so the chart's four y-axis intervals are
+// always whole numbers (e.g. 8 -> 0/2/4/6/8, never 0/1.25/2.5/...).
 function niceMax(value) {
-  if (value <= 0) return 10;
-  const step = value <= 20 ? 5 : value <= 100 ? 10 : Math.ceil(value / 50) * 10;
-  return Math.ceil(value / step) * step;
+  if (value <= 0) return 4;
+  const unit = value <= 8 ? 1 : value <= 20 ? 2 : value <= 50 ? 5 : value <= 100 ? 10 : Math.ceil(value / 40 / 10) * 10;
+  return Math.ceil(value / (4 * unit)) * 4 * unit;
+}
+
+// Whole-number percentages that always add up to exactly 100 (largest-
+// remainder method). Rounding each share on its own can total 99 or 101,
+// which left a gap or overlap in the category pie.
+function percentsSummingTo100(quantities) {
+  const total = quantities.reduce((n, q) => n + q, 0);
+  if (total <= 0) return quantities.map(() => 0);
+  const exact = quantities.map((q) => (q / total) * 100);
+  const floors = exact.map(Math.floor);
+  let remaining = 100 - floors.reduce((n, f) => n + f, 0);
+  exact
+    .map((v, i) => ({ i, frac: v - floors[i] }))
+    .sort((a, b) => b.frac - a.frac)
+    .forEach(({ i }) => {
+      if (remaining > 0) {
+        floors[i] += 1;
+        remaining -= 1;
+      }
+    });
+  return floors;
 }
 
 function termPayload(term) {
@@ -108,6 +131,7 @@ async function usageTrend(term, where = {}) {
   });
   return {
     labels: days.map(phtWeekdayShort),
+    dates: days.map((d) => formatDate(d)),
     borrowed,
     returned,
     max: niceMax(Math.max(...borrowed, ...returned, 1))
@@ -162,15 +186,20 @@ exports.summary = async (req, res) => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * DAY_MS);
 
   // Category distribution — share of total units per category, top 5 + Other.
+  // Categories with no units are left out (they would only add a 0% legend
+  // row), and the percentages are adjusted to total exactly 100.
   const byCategory = new Map();
   equipment.forEach((e) => {
     const name = e.category ? e.category.categoryName : 'Uncategorized';
-    byCategory.set(name, (byCategory.get(name) || 0) + e.totalQuantity);
+    byCategory.set(name, (byCategory.get(name) || 0) + (e.totalQuantity || 0));
   });
-  const sortedCategories = Array.from(byCategory.entries()).sort((a, b) => b[1] - a[1]);
+  const sortedCategories = Array.from(byCategory.entries())
+    .filter(([, qty]) => qty > 0)
+    .sort((a, b) => b[1] - a[1]);
   const top = sortedCategories.slice(0, 5);
   const restTotal = sortedCategories.slice(5).reduce((n, [, qty]) => n + qty, 0);
   if (restTotal > 0) top.push(['Other', restTotal]);
+  const categoryPercents = percentsSummingTo100(top.map(([, qty]) => qty));
 
   res.json({
     success: true,
@@ -185,10 +214,10 @@ exports.summary = async (req, res) => {
       activeBorrowers: new Set(termTxns.map((t) => t.borrowerId)).size,
       flaggedBorrowers,
       usageTrend: await usageTrend(term),
-      categoryDistribution: top.map(([categoryName, qty]) => ({
+      categoryDistribution: top.map(([categoryName, qty], i) => ({
         categoryName,
         quantity: qty,
-        percent: inventory.totalEquipment > 0 ? Math.round((qty / inventory.totalEquipment) * 100) : 0
+        percent: categoryPercents[i]
       }))
     }
   });
