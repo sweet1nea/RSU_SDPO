@@ -170,3 +170,17 @@ main{
   .notif-panel{width:calc(100vw - 24px);right:-8px}
   .menu-wrap{display:block}
 }
+
+/* Sign Out confirmation dialog (see confirmSignOut in app-shell.js). */
+.signout-overlay{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.45)}
+.signout-dialog{width:380px;max-width:100%;background:var(--page);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:22px 22px 18px;box-shadow:0 20px 45px rgba(15,23,42,.25)}
+.signout-title{margin:0 0 6px;font-size:18px;font-weight:700;color:var(--ink)}
+.signout-text{margin:0 0 18px;font-size:13px;line-height:1.5;color:var(--muted)}
+.signout-actions{display:flex;justify-content:flex-end;gap:10px}
+.signout-btn{min-width:92px;height:38px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--page);color:var(--ink)}
+.signout-btn:hover:not(:disabled){background:var(--softline)}
+.signout-btn--confirm{background:var(--deep);border-color:var(--deep);color:#fff}
+.signout-btn--confirm:hover:not(:disabled){background:var(--deep);filter:brightness(.92)}
+.signout-btn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.signout-btn:disabled{opacity:.6;cursor:default}
+@media (max-width:420px){.signout-actions{flex-direction:column-reverse}.signout-btn{width:100%}}

@@ -409,11 +409,68 @@
     });
     document.querySelectorAll('.js-signout-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        localStorage.removeItem('rsuSdpoToken');
-        localStorage.removeItem('rsuSdpoUser');
-        window.location.href = base + (role === 'user' ? 'pages/auth/user-login.html' : 'pages/auth/admin-login.html');
+        confirmSignOut(btn, function () {
+          localStorage.removeItem('rsuSdpoToken');
+          localStorage.removeItem('rsuSdpoUser');
+          window.location.href = base + (role === 'user' ? 'pages/auth/user-login.html' : 'pages/auth/admin-login.html');
+        });
       });
     });
+  }
+
+  // "Are you sure you want to sign out?" dialog shared by borrowers and
+  // SDPO staff/admins (both reach Sign Out through this same shell). The
+  // safe choice — Cancel — has the initial focus, Esc / clicking outside /
+  // Cancel all close it without signing out, and Tab stays inside the
+  // dialog while it is open. Focus returns to the Sign Out button on cancel.
+  // Automatic sign-outs (expired session, blocked account) do not go through
+  // here — those happen in api.js / syncSessionUser and never ask.
+  function confirmSignOut(trigger, onConfirm) {
+    if (document.getElementById('signoutConfirmOverlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'signout-overlay';
+    overlay.id = 'signoutConfirmOverlay';
+    overlay.innerHTML =
+      '<div class="signout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="signoutTitle" aria-describedby="signoutText">' +
+        '<h2 class="signout-title" id="signoutTitle">Sign out?</h2>' +
+        '<p class="signout-text" id="signoutText">You will need to sign in again to continue using RSU-SDPO.</p>' +
+        '<div class="signout-actions">' +
+          '<button type="button" class="signout-btn signout-btn--cancel" id="signoutCancel">Cancel</button>' +
+          '<button type="button" class="signout-btn signout-btn--confirm" id="signoutConfirm">Sign Out</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var cancelBtn = overlay.querySelector('#signoutCancel');
+    var confirmBtn = overlay.querySelector('#signoutConfirm');
+
+    function close() {
+      document.removeEventListener('keydown', onKeydown, true);
+      overlay.remove();
+      if (trigger && trigger.focus) trigger.focus();
+    }
+    function onKeydown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      } else if (e.key === 'Tab') {
+        // Keep keyboard focus inside the two-button dialog.
+        e.preventDefault();
+        (document.activeElement === cancelBtn ? confirmBtn : cancelBtn).focus();
+      }
+    }
+
+    cancelBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    confirmBtn.addEventListener('click', function () {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      document.removeEventListener('keydown', onKeydown, true);
+      onConfirm();
+    });
+    document.addEventListener('keydown', onKeydown, true);
+    cancelBtn.focus();
   }
 
   // Keeps the cached signed-in user (name, Borrower Type, college, account
