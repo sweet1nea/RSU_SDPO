@@ -251,7 +251,17 @@
     .wizard-actions .btn-primary{flex:1;border:0;background:var(--deep);border-radius:14px;padding:12px;font-size:14px;font-weight:600;color:#fff;cursor:pointer}
     .wizard-actions .btn-primary:disabled{background:#d6dde6;cursor:not-allowed}
 
-    .success-screen{max-width:448px;margin:24px auto 0;text-align:center}
+    /* Submission success — shown as an actual floating popup modal (dim
+       backdrop + centered card) over the equipment showroom, rather than
+       as another step inside the wizard's own full-page flow — per the
+       2026-10-03 request for a "confirmation / successful... wait for
+       approval" popup once the borrow form is confirmed. z-index is above
+       .borrow-flow (1000) since the flow is already closed underneath by
+       the time this shows, but kept higher in case of any transition
+       overlap. */
+    .success-modal-overlay{display:none;position:fixed;inset:0;z-index:1100;background:rgba(15,23,42,.5);align-items:center;justify-content:center;padding:20px;overflow:auto}
+    .success-modal-overlay.open{display:flex}
+    .success-screen{max-width:448px;width:100%;margin:0;text-align:center;background:#fff;border-radius:20px;padding:36px 32px 32px;box-shadow:0 24px 60px rgba(7,16,30,.3);max-height:calc(100vh - 40px);overflow:auto}
     .success-icon{width:80px;height:80px;border-radius:50%;background:#dcfce7;display:grid;place-items:center;margin:0 auto;font-size:32px;color:#16a34a;font-weight:700}
     .success-screen h2{font-size:22px;margin:20px 0 0;color:#1d293d}
     .success-screen>p{color:#62748e;font-size:14px;line-height:1.6;margin:8px 0 0}
@@ -509,22 +519,28 @@
         </div>
       </section>
 
-      <section class="wizard-panel success-screen" id="panel-success">
-        <div class="success-icon">✓</div>
-        <h2>Request Submitted</h2>
-        <p>Your borrowing request has been successfully submitted and is now awaiting review by SDPO personnel.</p>
-        <div class="success-card">
-          <div class="success-row"><span>Request Number</span><span class="success-req-id" id="successReqId"></span></div>
-          <div class="success-row" style="margin-bottom:0;border-bottom:0;padding-bottom:0"><span>Status</span><span class="status-pill">Acknowledged</span></div>
-          <div class="success-next" style="padding-top:12px"><b>What happens next?</b><span>Acknowledged → Reviewed → <em>Pending Approval</em> → Approved → Released → Returned → Completed</span></div>
-        </div>
-        <div class="success-actions">
-          <button type="button" class="btn-primary" id="viewMyRequest">View My Request</button>
-          <button type="button" class="btn-back" id="backToEquipment">Back to Equipment</button>
-        </div>
-      </section>
     </div>
   </section>
+
+  <!-- Submission success — a real popup modal over the showroom, shown
+       once the borrow form has been confirmed and submitted; see the
+       .success-modal-overlay CSS note above. -->
+  <div class="success-modal-overlay" id="successModalOverlay">
+    <section class="success-screen" id="panel-success" role="alertdialog" aria-modal="true" aria-labelledby="successTitle">
+      <div class="success-icon">✓</div>
+      <h2 id="successTitle">Request Submitted</h2>
+      <p>Your borrowing request has been successfully submitted and is now awaiting review by SDPO personnel.</p>
+      <div class="success-card">
+        <div class="success-row"><span>Request Number</span><span class="success-req-id" id="successReqId"></span></div>
+        <div class="success-row" style="margin-bottom:0;border-bottom:0;padding-bottom:0"><span>Status</span><span class="status-pill">Acknowledged</span></div>
+        <div class="success-next" style="padding-top:12px"><b>What happens next?</b><span>Acknowledged → Reviewed → <em>Pending Approval</em> → Approved → Released → Returned → Completed</span></div>
+      </div>
+      <div class="success-actions">
+        <button type="button" class="btn-primary" id="viewMyRequest">View My Request</button>
+        <button type="button" class="btn-back" id="backToEquipment">Back to Equipment</button>
+      </div>
+    </section>
+  </div>
 
   <div class="toast-stack" id="toastStack"></div>
 
@@ -917,10 +933,10 @@
 
     function showWizardStep(n){
       wizardStep=n;
-      const activeId=n===4?'panel-success':stepPanels[n];
-      ['panel-0','panel-1','panel-2','panel-3','panel-success'].forEach(id=>$(id).classList.toggle('active',id===activeId));
-      stepEls.forEach((el,i)=>{el.classList.toggle('is-active',i===n);el.classList.toggle('is-done',i<n||n===4);});
-      connectors.forEach((el,i)=>el.classList.toggle('is-done',i<n||n===4));
+      const activeId=stepPanels[n];
+      stepPanels.forEach(id=>$(id).classList.toggle('active',id===activeId));
+      stepEls.forEach((el,i)=>{el.classList.toggle('is-active',i===n);el.classList.toggle('is-done',i<n);});
+      connectors.forEach((el,i)=>el.classList.toggle('is-done',i<n));
       // Re-floor the min (and re-check validity) every time this step is
       // reached, not just once at page load — a wizard left open past
       // midnight would otherwise still accept "today" meaning yesterday.
@@ -994,6 +1010,9 @@
     // scrolled into) while the form is open — see .body.flow-open above.
     function openBorrowFlow(){borrowFlow.classList.add('open');document.body.classList.add('flow-open');}
     function closeBorrowFlow(){borrowFlow.classList.remove('open');document.body.classList.remove('flow-open');}
+    function openSuccessModal(){$('successModalOverlay').classList.add('open');}
+    function closeSuccessModal(){$('successModalOverlay').classList.remove('open');}
+    $('successModalOverlay').addEventListener('click',e=>{if(e.target===$('successModalOverlay'))closeSuccessModal();});
 
     /* ---------- Draft autosave (2026-10-03 report) ----------
        A hard refresh reloads the whole page, which wipes every JS variable
@@ -1069,7 +1088,7 @@
       updateStepValidity();
     });
     $('closeFlow').addEventListener('click',()=>{clearDraft();closeBorrowFlow();});
-    $('backToEquipment').addEventListener('click',()=>{clearDraft();closeBorrowFlow();});
+    $('backToEquipment').addEventListener('click',()=>{closeSuccessModal();});
     $('viewMyRequest').addEventListener('click',()=>{window.location.href='my-requests.html';});
 
     $('submitRequest').addEventListener('click',()=>{
@@ -1088,8 +1107,9 @@
       })
         .then(data=>{
           clearDraft();
+          closeBorrowFlow();
           $('successReqId').textContent=data.id;
-          showWizardStep(4);
+          openSuccessModal();
           // Stock and my-activity figures changed — refresh them from the server.
           refreshCatalog();
           loadMyActivity();

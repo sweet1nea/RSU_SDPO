@@ -67,6 +67,7 @@ body{font:13px/1.45 Inter,Arial,sans-serif}
 </div>
 <script src="../../js/shared/app-shell.js"></script>
 <script src="../../js/shared/api.js"></script>
+<script src="../../js/shared/confirm-dialog.js"></script>
 <script src="../../js/vendor/qrious.min.js"></script>
 <script src="../../js/vendor/jsQR.js"></script>
 <script src="../../js/vendor/jspdf.umd.min.js"></script>
@@ -114,7 +115,7 @@ function draw(){const term=$('#search').value.toLowerCase(),cat=$('#catFilter').
 // final word (blocks anything with transaction history too) and its error
 // message is shown as-is on rejection.
 async function deleteQrItem(id,name,code){
-  if(!confirm(`Delete the QR code for "${name}" (${code})? This cannot be undone.`))return;
+  if(!(await showConfirmDialog({title:'Delete this QR code?',message:`Delete the QR code for "${name}" (${code})? This cannot be undone.`,kind:'danger',confirmLabel:'Delete'})))return;
   try{
     await apiFetch(`/api/qr/items/${id}`,{method:'DELETE'});
     const deleted=items.find(i=>String(i.id)===String(id));
@@ -186,8 +187,8 @@ $('.tabs').onclick=e=>{if(!e.target.matches('.tab'))return;tab=e.target.dataset.
 $('#equipment').onchange=()=>{updateCategoryDisplay();updateEncodePreview();updateExistingNote();ready()};
 $('#quantity').oninput=ready;
 $('#addRow').onclick=()=>addBulk();
-$('#generate').onclick=async()=>{const equipmentId=Number($('#equipment').value),quantity=Number($('#quantity').value);if(!equipmentId||!quantity||quantity<1)return;const eq=equipmentList.find(e=>e.id===equipmentId);const existing=existingCountFor(equipmentId);if(existing>=eq.totalQuantity){alert(`"${eq.equipmentName}" already has QR codes for all ${eq.totalQuantity} unit(s) — there's nothing left to generate.`);return}const confirmMsg=existing>0?`${existing} of ${eq.totalQuantity} QR code(s) already exist for "${eq.equipmentName}". Generate ${quantity} more? Item Codes cannot be changed or reused once created.`:`Generate ${quantity} permanent QR code(s) for "${eq.equipmentName}"? Item Codes cannot be changed or reused once created.`;if(!confirm(confirmMsg))return;try{const created=await apiFetch('/api/qr/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId,quantity})});items=[...created,...items];populateEquipmentSelects();updateExistingNote();draw();ready();openPreview(created[0].equipmentName,created[0].code)}catch(e){alert(e.message)}};
-$('#generateBulk').onclick=async()=>{const pending=rows();if(!pending.length)return;if(!confirm(`Generate QR codes for ${pending.length} equipment row(s)? Item Codes cannot be changed or reused once created.`))return;const results=await Promise.allSettled(pending.map(r=>{const equipmentId=Number(r.querySelector('select').value),quantity=Number(r.querySelector('input').value)||1;return apiFetch('/api/qr/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId,quantity})})}));const created=[],errors=[];results.forEach(r=>{if(r.status==='fulfilled')created.push(...r.value);else errors.push(r.reason.message)});if(created.length)items=[...created,...items];populateEquipmentSelects();draw();ready();if(errors.length)alert('Some rows failed:\n'+errors.join('\n'))};
+$('#generate').onclick=async()=>{const equipmentId=Number($('#equipment').value),quantity=Number($('#quantity').value);if(!equipmentId||!quantity||quantity<1)return;const eq=equipmentList.find(e=>e.id===equipmentId);const existing=existingCountFor(equipmentId);if(existing>=eq.totalQuantity){alert(`"${eq.equipmentName}" already has QR codes for all ${eq.totalQuantity} unit(s) — there's nothing left to generate.`);return}const confirmMsg=existing>0?`${existing} of ${eq.totalQuantity} QR code(s) already exist for "${eq.equipmentName}". Generate ${quantity} more? Item Codes cannot be changed or reused once created.`:`Generate ${quantity} permanent QR code(s) for "${eq.equipmentName}"? Item Codes cannot be changed or reused once created.`;if(!(await showConfirmDialog({title:'Generate QR code(s)?',message:confirmMsg,kind:'warning',confirmLabel:'Generate'})))return;try{const created=await apiFetch('/api/qr/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId,quantity})});items=[...created,...items];populateEquipmentSelects();updateExistingNote();draw();ready();openPreview(created[0].equipmentName,created[0].code)}catch(e){alert(e.message)}};
+$('#generateBulk').onclick=async()=>{const pending=rows();if(!pending.length)return;if(!(await showConfirmDialog({title:'Generate QR code(s)?',message:`Generate QR codes for ${pending.length} equipment row(s)? Item Codes cannot be changed or reused once created.`,kind:'warning',confirmLabel:'Generate'})))return;const results=await Promise.allSettled(pending.map(r=>{const equipmentId=Number(r.querySelector('select').value),quantity=Number(r.querySelector('input').value)||1;return apiFetch('/api/qr/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId,quantity})})}));const created=[],errors=[];results.forEach(r=>{if(r.status==='fulfilled')created.push(...r.value);else errors.push(r.reason.message)});if(created.length)items=[...created,...items];populateEquipmentSelects();draw();ready();if(errors.length)alert('Some rows failed:\n'+errors.join('\n'))};
 // Only affects the currently visible (filtered) rows, same as before — but
 // now also updates the `selected` Set, not just the checkbox DOM, so the
 // choice survives the next re-render.

@@ -115,6 +115,7 @@
 
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/app-shell.js"></script>
+  <script src="../../js/shared/confirm-dialog.js"></script>
   <script>
     // Only the request/approval phase lives here — once equipment is Released
     // it moves to My Borrowings, and closed-out transactions move to History.
@@ -275,9 +276,9 @@
         .catch(err=>{reuploadError.textContent=err.message;})
         .finally(()=>{reuploadSubmitBtn.disabled=false;reuploadSubmitBtn.textContent='Upload';});
     });
-    function cancelRequest(id){
+    async function cancelRequest(id){
       const r=requests.find(x=>x.id===id);
-      if(!confirm('Cancel request '+r.id+'?'))return;
+      if(!(await showConfirmDialog({title:'Cancel this request?',message:'Cancel request '+r.id+'?',kind:'danger',confirmLabel:'Cancel Request',cancelLabel:'Keep Request'})))return;
       apiFetch('/api/borrow/'+r.dbId+'/cancel',{method:'PATCH'})
         .then(()=>loadRequests())
         .then(()=>{

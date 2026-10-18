@@ -26,6 +26,7 @@
   <div class="toast" id="toast" role="status"></div>
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/app-shell.js"></script>
+  <script src="../../js/shared/confirm-dialog.js"></script>
   <script>
     const toast=document.getElementById('toast'); let timer;
     function showToast(message){toast.textContent=message;toast.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>toast.classList.remove('show'),2200)}
@@ -86,10 +87,10 @@
     }
 
     async function submitReplacement(id){
-      const equip=prompt('Replacement equipment (description):');
+      const equip=await showPromptDialog({title:'Replacement equipment',message:'Describe the equipment used as a replacement.',placeholder:'Replacement equipment (description)'});
       if(equip===null)return;
       if(!equip.trim()){showToast('Enter a replacement equipment description.');return}
-      const date=prompt('Replacement date (YYYY-MM-DD):',todayPHDateString());
+      const date=await showPromptDialog({title:'Replacement date',message:'Enter the date the replacement was/will be provided.',placeholder:'YYYY-MM-DD',defaultValue:todayPHDateString()});
       if(date===null)return;
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())){showToast('Enter the date as YYYY-MM-DD.');return}
       try{
@@ -98,23 +99,23 @@
       }catch(err){showToast(err.message);}
     }
     async function verifyReplacement(id){
-      if(!confirm('Verify this replacement is equivalent to the original equipment?'))return;
+      if(!(await showConfirmDialog({title:'Verify replacement?',message:'Confirm this replacement is equivalent to the original equipment.',kind:'success',confirmLabel:'Verify'})))return;
       try{await apiFetch(`/api/damage-loss/${id}/verify`,{method:'PATCH'});await loadRecords();showToast('Replacement verified');}
       catch(err){showToast(err.message);}
     }
     async function resolveRecord(id){
-      if(!confirm('Mark this record as resolved? The borrower will be un-restricted once all their records are resolved.'))return;
+      if(!(await showConfirmDialog({title:'Mark as resolved?',message:'The borrower will be un-restricted once all their records are resolved.',kind:'success',confirmLabel:'Mark Resolved'})))return;
       try{await apiFetch(`/api/damage-loss/${id}/resolve`,{method:'PATCH'});await loadRecords();showToast('Record resolved');}
       catch(err){showToast(err.message);}
     }
     async function toggleFlag(id,isFlagged){
       const record=records.find(r=>r.id===id);
       if(!isFlagged){
-        if(!confirm(`Flag ${record.borrowerName}? They can still sign in, but new borrowing requests will be blocked until unflagged.`))return;
+        if(!(await showConfirmDialog({title:'Flag this borrower?',message:`Flag ${record.borrowerName}? They can still sign in, but new borrowing requests will be blocked until unflagged.`,kind:'danger',confirmLabel:'Flag'})))return;
         try{await apiFetch(`/api/damage-loss/${id}/flag`,{method:'PATCH'});await loadRecords();showToast('Borrower flagged successfully');}
         catch(err){showToast(err.message);}
       }else{
-        if(!confirm(`Unflag ${record.borrowerName}? This restores their borrowing privileges (any item still pending replacement continues to block new requests).`))return;
+        if(!(await showConfirmDialog({title:'Unflag this borrower?',message:`Unflag ${record.borrowerName}? This restores their borrowing privileges (any item still pending replacement continues to block new requests).`,kind:'success',confirmLabel:'Unflag'})))return;
         try{await apiFetch(`/api/damage-loss/${id}/unflag`,{method:'PATCH'});await loadRecords();showToast('Borrower unflagged successfully');}
         catch(err){showToast(err.message);}
       }

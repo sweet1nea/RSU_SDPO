@@ -37,6 +37,17 @@
     .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:65;display:none;align-items:center;justify-content:center;padding:20px}
     .modal-overlay.show{display:flex}
     .modal-box{background:var(--page);border-radius:14px;width:min(760px,100%);max-height:88vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    /* New Transaction is the one modal that uses this box for a full
+       multi-section form (borrower search/select, walk-in registration,
+       equipment rows, activity info) — the shared 760px width left its
+       2-column field grids (.wizard-grid-2 etc.) cramped with a lot of
+       empty space around the box itself on anything wider than a laptop
+       screen. Widened it on its own rather than the shared .modal-box
+       rule, so the small QR-preview dialog (which overrides width inline)
+       and any future narrow use of .modal-box are unaffected. Kept well
+       short of the viewport per the 2026-10-03 request ("not exactly
+       taking up the whole screen's space"). */
+    #newTxnOverlay .modal-box{width:min(960px,94vw)}
     .modal-head{display:flex;justify-content:space-between;align-items:center;padding:15px 19px;border-bottom:1px solid var(--line)}
     .modal-head b{font-size:13px}
     .modal-body{padding:16px 19px}
@@ -203,6 +214,7 @@
   <script src="../../js/shared/app-shell.js"></script>
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/equipment-ui.js"></script>
+  <script src="../../js/shared/confirm-dialog.js"></script>
   <script src="../../js/vendor/jsQR.js"></script>
   <script src="../../js/vendor/qrious.min.js"></script>
   <script>
@@ -498,8 +510,8 @@
 
     async function reviewTxn(action){
       const labels={accept:'Approve this request',correction:'Return for Correction',reject:'Reject'};
-      const remarks=action!=='accept'?(prompt('Remarks (optional):')||''):'';
-      if(!confirm(`${labels[action]} — transaction ${current.id}?`))return;
+      const remarks=action!=='accept'?((await showPromptDialog({title:'Remarks (optional)',message:'Add any notes for this review — shown to the borrower.',placeholder:'Remarks'}))||''):'';
+      if(!(await showConfirmDialog({title:labels[action]+'?',message:`${labels[action]} — transaction ${current.id}?`,kind:action==='reject'?'danger':'success',confirmLabel:labels[action]})))return;
       await runAction(async()=>{
         try{
           await apiFetch(`/api/borrow/${current.dbId}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,remarks})});
@@ -508,13 +520,13 @@
       });
     }
     async function approveTxn(){
-      if(!confirm(`Approve transaction ${current.id}?`))return;
+      if(!(await showConfirmDialog({title:'Approve this request?',message:`Transaction ${current.id} will be approved.`,kind:'success',confirmLabel:'Approve'})))return;
       await runAction(async()=>{try{await apiFetch(`/api/borrow/${current.dbId}/approve`,{method:'PATCH'});closeDrawer();await loadTransactions();toast('Transaction approved')}
       catch(e){alert(e.message);await loadTransactions()}});
     }
     async function rejectTxn(){
-      if(!confirm(`Reject transaction ${current.id}?`))return;
-      const remarks=prompt('Reason for rejection (shown to the borrower):')||'';
+      if(!(await showConfirmDialog({title:'Reject this request?',message:`Transaction ${current.id} will be rejected.`,kind:'danger',confirmLabel:'Reject'})))return;
+      const remarks=(await showPromptDialog({title:'Reason for rejection',message:'This will be shown to the borrower.',placeholder:'Reason for rejection'}))||'';
       await runAction(async()=>{try{await apiFetch(`/api/borrow/${current.dbId}/reject`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({remarks})});closeDrawer();await loadTransactions();toast('Transaction rejected')}
       catch(e){alert(e.message);await loadTransactions()}});
     }
@@ -534,7 +546,7 @@
       }catch(e){alert(e.message);await loadTransactions()}});
     }
     async function completeTxn(){
-      if(!confirm(`Mark transaction ${current.id} as Completed?`))return;
+      if(!(await showConfirmDialog({title:'Mark as Completed?',message:`Transaction ${current.id} will be marked as Completed.`,kind:'success',confirmLabel:'Mark Completed'})))return;
       await runAction(async()=>{try{await apiFetch(`/api/borrow/${current.dbId}/complete`,{method:'PATCH'});closeDrawer();await loadTransactions();toast('Transaction completed')}
       catch(e){alert(e.message);await loadTransactions()}});
     }
@@ -575,12 +587,12 @@
       }catch(e){alert(e.message)}
     }
     async function verifyReplacementFor(id){
-      if(!confirm('Verify this replacement is equivalent to the original equipment?'))return;
+      if(!(await showConfirmDialog({title:'Verify replacement?',message:'Confirm this replacement is equivalent to the original equipment.',kind:'success',confirmLabel:'Verify'})))return;
       try{await apiFetch(`/api/damage-loss/${id}/verify`,{method:'PATCH'});await loadResolutionRecords(current);toast('Replacement verified')}
       catch(e){alert(e.message)}
     }
     async function resolveRecordFor(id){
-      if(!confirm('Mark this damage/loss record as resolved? This requires the replacement to already be verified.'))return;
+      if(!(await showConfirmDialog({title:'Mark as resolved?',message:'This requires the replacement to already be verified.',kind:'success',confirmLabel:'Mark Resolved'})))return;
       try{await apiFetch(`/api/damage-loss/${id}/resolve`,{method:'PATCH'});await loadResolutionRecords(current);await loadTransactions();toast('Record resolved')}
       catch(e){alert(e.message)}
     }
