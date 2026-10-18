@@ -58,6 +58,18 @@
          print dialog's paper-size picker can still override it per printer. */
       @page{size:A4;margin:14mm}
       #paper{font-size:10pt}
+      /* When a report is longer than one A4 page it continues on the next
+         page: the table header repeats on every page, a row is never split
+         across pages, and the signature block stays together with the
+         document footer, so the footer line can no longer end up alone on
+         an otherwise empty extra page. */
+      .reporttable thead{display:table-header-group}
+      .reporttable tr{break-inside:avoid;page-break-inside:avoid}
+      .reporttitle,.summarylabel{break-after:avoid;page-break-after:avoid}
+      .reportend{break-inside:avoid;page-break-inside:avoid}
+      #paper{padding:0}
+      .signatures{margin-top:18px}
+      .docfoot{margin-top:18px}
       body *{visibility:hidden}
       #paper,#paper *{visibility:visible}
       #paper{position:absolute;top:0;left:0;width:100%;margin:0;box-shadow:none;border:0;max-width:none}
@@ -177,7 +189,7 @@
       // the Prepared-by signature line, which the PDF doesn't render at all
       // but is kept here since it's a genuinely useful on-screen/print
       // addition, not something being removed for parity's sake.
-      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span id="pageCountFoot">Page 1 of 1</span></div>`;
+      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="reportend"><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span id="pageCountFoot">Page 1 of 1</span></div></div>`;
       // Same orientation rule as the PDF/Excel exports: landscape when the table has more than 5 columns.
       let pageStyle=document.getElementById('reportPageStyle');
       if(!pageStyle){pageStyle=document.createElement('style');pageStyle.id='reportPageStyle';document.head.appendChild(pageStyle);}
