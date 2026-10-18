@@ -379,7 +379,7 @@
           <p class="wizard-quote">Borrowing of equipment must be requested and completed at least 2–5 days before the scheduled event to ensure equipment availability and proper preparation. Borrowers must present a valid identification card and all required documents.</p>
           <div class="wizard-section">
             <h4>Eligible to Borrow</h4>
-            <p>Faculty, staff, employees, students, and stakeholders (external users) may borrow equipment.</p>
+            <p>Faculty, employees, students, and stakeholders (external users) may borrow equipment.</p>
           </div>
           <div class="wizard-section">
             <h4>Procedures</h4>
@@ -687,7 +687,6 @@
        second slot to say what it actually needs to be for that category. */
     const DOC_REQUIREMENTS_BY_CATEGORY={
       Faculty:{needsValidId:false,docLabel:'Activity Schedule',docHint:'The schedule of the activity you\'re borrowing equipment for.'},
-      Staff:{needsValidId:false,docLabel:'Approved Proposal / Request Letter',docHint:'An approved proposal or request letter for this borrowing.'},
       Employee:{needsValidId:false,docLabel:'Approved Proposal / Request Letter',docHint:'An approved proposal or request letter for this borrowing.'},
       Student:{needsValidId:false,docLabel:'Authorization Letter',docHint:'An authorization letter signed by your adviser or faculty member.'},
       External:{needsValidId:true,docLabel:'Approved Proposal / Request Letter',docHint:'An approved proposal or request letter for this borrowing.'}
@@ -710,7 +709,7 @@
       $('reviewAuthDocLabel').textContent=docReq.docLabel;
       $('docsIntro').textContent=docReq.needsValidId
         ?'Upload the documents required for your borrowing request.'
-        :`As a ${esc(borrowerCategory==='Employee'||borrowerCategory==='Staff'?'RSU Employee':borrowerCategory)}, only the document below is required — no Valid ID needed.`;
+        :`As a ${esc(borrowerCategory==='Employee'?'RSU Employee':borrowerCategory)}, only the document below is required — no Valid ID needed.`;
       updateStepValidity();
     }
 

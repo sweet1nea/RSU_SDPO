@@ -5,11 +5,10 @@
 // approved RSU SDPO borrowing requirements; the client reads the same rules
 // back from GET /api/borrowers/me/documents so the wizard and the server can
 // never disagree.
-const BORROWER_CATEGORIES = ['Faculty', 'Staff', 'Employee', 'Student', 'External'];
+const BORROWER_CATEGORIES = ['Faculty', 'Employee', 'Student', 'External'];
 
 const DOCUMENT_REQUIREMENTS = {
   Faculty: { needsValidId: false, documentLabel: 'Activity Schedule' },
-  Staff: { needsValidId: false, documentLabel: 'Approved Proposal / Request Letter' },
   Employee: { needsValidId: false, documentLabel: 'Approved Proposal / Request Letter' },
   Student: { needsValidId: false, documentLabel: 'Authorization Letter' },
   External: { needsValidId: true, documentLabel: 'Approved Proposal / Request Letter' }

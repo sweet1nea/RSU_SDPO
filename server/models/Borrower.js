@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       middleName: { type: DataTypes.STRING(100), allowNull: true },
       collegeOrUnit: { type: DataTypes.STRING(200), allowNull: false },
       borrowerCategory: {
-        type: DataTypes.ENUM('Faculty', 'Staff', 'Employee', 'Student', 'External'),
+        type: DataTypes.ENUM('Faculty', 'Employee', 'Student', 'External'),
         allowNull: false
       },
       validIdPath: { type: DataTypes.STRING(255), allowNull: true },

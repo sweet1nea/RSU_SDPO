@@ -8,7 +8,7 @@
   <style>
     /* Standalone implementation of the Reports Figma frames. */
     .content{width:100%;max-width:1200px;margin:auto;padding:24px 62px 36px}
-    .pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.actions{display:flex;gap:7px}.calendar-link{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--line);background:var(--page);color:var(--ink);font-size:11px;text-decoration:none}.calendar-link:hover{background:var(--softline)}.btn{height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--green);background:var(--page);color:var(--green);font-size:11px;cursor:pointer}.btn.primary{background:var(--green);color:#fff}.btn.print{background:#9edccb;border-color:#9edccb;color:#fff}.filters{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:15px 13px;display:flex;align-items:end;gap:11px;margin-bottom:17px}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted)}.filters select{appearance:none;height:29px;border:1px solid var(--line);border-radius:7px;background:var(--softline);color:var(--ink);font:11px inherit;padding:0 27px 0 10px;min-width:140px;background-image:linear-gradient(45deg,transparent 50%,#8aa0b9 50%),linear-gradient(135deg,#8aa0b9 50%,transparent 50%);background-position:calc(100% - 12px) 12px,calc(100% - 9px) 12px;background-size:3px 3px,3px 3px;background-repeat:no-repeat}.field.quarter select{min-width:102px}.field.year select{min-width:82px}.filters .generate{height:30px}.reset{border-color:var(--line);color:var(--muted)}.empty{height:234px;border:1px solid var(--line);border-radius:10px;background:var(--page);display:grid;place-items:center;text-align:center;color:var(--muted)}.emptyicon{width:56px;height:56px;margin:auto auto 12px;border-radius:13px;background:#eef4fb;display:grid;place-items:center;font-size:24px;color:#c0d1e6}.empty b{display:block;color:var(--muted);margin-bottom:7px}.empty span{font-size:11px;display:block}.empty em{font-style:normal;color:var(--green);font-size:11px}.paper{max-width:816px;min-height:600px;margin:0 auto;background:#fff;border:1px solid #d7dde5;box-shadow:0 2px 3px #182b4a20;padding:48px 53px 40px;color:#1f2937;font-family:Helvetica,Arial,sans-serif}
+    .pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.actions{display:flex;gap:7px}.calendar-link{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--line);background:var(--page);color:var(--ink);font-size:11px;text-decoration:none}.calendar-link:hover{background:var(--softline)}.btn{height:28px;padding:0 13px;border-radius:7px;border:1px solid var(--green);background:var(--page);color:var(--green);font-size:11px;cursor:pointer}.btn.primary{background:var(--green);color:#fff}.btn.print{background:#9edccb;border-color:#9edccb;color:#fff}.filters{background:var(--page);border:1px solid var(--line);border-radius:10px;padding:15px 13px;display:flex;align-items:end;gap:11px;margin-bottom:17px}.field{display:grid;gap:5px}.field label{font-size:10px;color:var(--muted)}.filters select{appearance:none;height:29px;border:1px solid var(--line);border-radius:7px;background:var(--softline);color:var(--ink);font:11px inherit;padding:0 27px 0 10px;min-width:140px;background-image:linear-gradient(45deg,transparent 50%,#8aa0b9 50%),linear-gradient(135deg,#8aa0b9 50%,transparent 50%);background-position:calc(100% - 12px) 12px,calc(100% - 9px) 12px;background-size:3px 3px,3px 3px;background-repeat:no-repeat}.field.quarter select{min-width:102px}.field.year select{min-width:82px}.filters .generate{height:30px}.reset{border-color:var(--line);color:var(--muted)}.empty{height:234px;border:1px solid var(--line);border-radius:10px;background:var(--page);display:grid;place-items:center;text-align:center;color:var(--muted)}.emptyicon{width:56px;height:56px;margin:auto auto 12px;border-radius:13px;background:#eef4fb;display:grid;place-items:center;font-size:24px;color:#c0d1e6}.empty b{display:block;color:var(--muted);margin-bottom:7px}.empty span{font-size:11px;display:block}.empty em{font-style:normal;color:var(--green);font-size:11px}.paper{max-width:794px;min-height:600px;margin:0 auto;background:#fff;border:1px solid #d7dde5;box-shadow:0 2px 3px #182b4a20;padding:48px 53px 40px;color:#1f2937;font-family:Helvetica,Arial,sans-serif}
     /* Two-seal letterhead (2026-09-13 redesign, matches the approved "A4
        Overdue Report Design" mockup): the Romblon State University seal on
        the left and the SDPO gear logo on the right, flanking the centered
@@ -52,15 +52,11 @@
        actually show through a hidden ancestor. Confirmed with a real
        headless-Chromium print-to-PDF render, not just reasoned about. */
     @media print{
-      /* Standardized to Legal (8.5x14in) 2026-09-15, matching sendPdf's
-         `size: 'LEGAL'` and sendExcel's `paperSize: 5` in
-         server/reports/templates/reportRenderer.js — previously unset here,
-         so Print used whatever the browser/OS default page size was
-         (usually Letter), a third size from the PDF/Excel exports of the
-         same report. size:legal is a CSS Paged Media keyword browsers
-         resolve to 8.5in x 14in; the print dialog's own paper-size picker
-         can still override it per-printer, same as any other page. */
-      @page{size:legal;margin:14mm}
+      /* A4 (210 x 297 mm), matching sendPdf's `size: 'A4'` and sendExcel's
+         `paperSize: 9` in server/reports/templates/reportRenderer.js, so
+         the print view, PDF and Excel all use the same page size. The
+         print dialog's paper-size picker can still override it per printer. */
+      @page{size:A4;margin:14mm}
       #paper{font-size:10pt}
       body *{visibility:hidden}
       #paper,#paper *{visibility:visible}
@@ -102,27 +98,19 @@
 
     function showEmpty(){paper.classList.add('hidden');empty.classList.remove('hidden')}
 
-    // Best-effort print page count (2026-10-02). The on-screen preview is
-    // also what the Print button sends to the browser's print dialog, but
-    // JavaScript has no way to ask the browser how many physical pages a
-    // print job will actually produce — that's decided by the print engine
-    // at print time, not exposed back to the page. So instead of the old
-    // static "Legal (8.5 × 14 in)" label, the footer shows an ESTIMATED
-    // page count: the rendered content height (#paper.scrollHeight) divided
-    // by the usable height of one Legal page (the page size minus the
-    // @media print @page margin below), matching the same portrait/
-    // landscape rule applied there. This can drift slightly from the real
-    // print output — on-screen text wraps at #paper's on-screen width
-    // (~816px), not the narrower post-margin printable width the browser
-    // actually prints at — but it's close for these report tables, and far
-    // more useful than a fixed paper-size label. The downloadable PDF
-    // (server/reports/templates/reportRenderer.js) is unaffected by any of
-    // this — it computes its own real, exact page count server-side.
-    const LEGAL_WIDTH_IN=8.5,LEGAL_HEIGHT_IN=14,PRINT_MARGIN_MM=14,PX_PER_IN=96,PX_PER_MM=PX_PER_IN/25.4;
+    // Best-effort print page count. JavaScript cannot ask the browser how
+    // many physical pages a print job will produce, so the footer shows an
+    // ESTIMATE: the rendered content height (#paper.scrollHeight) divided by
+    // the usable height of one A4 page (page size minus the @media print
+    // @page margin), using the same portrait/landscape rule as the print
+    // style below. It can drift slightly from the real print output. The
+    // downloadable PDF (server/reports/templates/reportRenderer.js)
+    // computes its own exact page count server-side.
+    const A4_WIDTH_MM=210,A4_HEIGHT_MM=297,PRINT_MARGIN_MM=14,PX_PER_IN=96,PX_PER_MM=PX_PER_IN/25.4;
     let lastHeadsLength=0;
     function estimatedPageCount(headsLength){
       const landscape=headsLength>5;
-      const pageHeightPx=(landscape?LEGAL_WIDTH_IN:LEGAL_HEIGHT_IN)*PX_PER_IN;
+      const pageHeightPx=(landscape?A4_WIDTH_MM:A4_HEIGHT_MM)*PX_PER_MM;
       const usableHeightPx=pageHeightPx-(PRINT_MARGIN_MM*PX_PER_MM*2);
       const contentHeightPx=paper.scrollHeight;
       return Math.max(1,Math.ceil(contentHeightPx/usableHeightPx));
@@ -193,7 +181,7 @@
       // Same orientation rule as the PDF/Excel exports: landscape when the table has more than 5 columns.
       let pageStyle=document.getElementById('reportPageStyle');
       if(!pageStyle){pageStyle=document.createElement('style');pageStyle.id='reportPageStyle';document.head.appendChild(pageStyle);}
-      pageStyle.textContent=`@media print{@page{size:legal ${r.heads.length>5?'landscape':'portrait'};margin:14mm}}`;
+      pageStyle.textContent=`@media print{@page{size:A4 ${r.heads.length>5?'landscape':'portrait'};margin:14mm}}`;
       lastHeadsLength=r.heads.length;
       updatePageCountFooter();
     }
