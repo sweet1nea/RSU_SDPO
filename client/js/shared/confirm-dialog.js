@@ -40,6 +40,7 @@
   var injected = false;
   var els = null;
   var activeResolve = null;
+  var hideTimer = null;
   var isPrompt = false;
 
   function injectStyles() {
@@ -146,14 +147,19 @@
     var resolve = activeResolve;
     activeResolve = null;
     els.overlay.classList.remove("rsu-confirm-show");
-    setTimeout(function () {
-      els.overlay.hidden = true;
+    // Keep the timer so a dialog opened straight after this one (e.g. the
+    // remarks prompt followed by a confirm) can cancel it — otherwise the
+    // old timer hides the new dialog 150ms after it opens.
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () {
+      if (!activeResolve) els.overlay.hidden = true;
     }, 150);
     resolve(value);
   }
 
   function open(opts, promptMode) {
     ensureReady();
+    clearTimeout(hideTimer);
     isPrompt = !!promptMode;
     var kind = opts.kind || "warning";
 
