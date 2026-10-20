@@ -18,6 +18,7 @@ jest.mock('../../models', () => ({
   sequelize: { transaction: jest.fn((cb) => cb({})) }
 }));
 jest.mock('../../config/supabase', () => ({ getClient: jest.fn() }));
+jest.mock('../../helpers/correction', () => ({ recordResubmission: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
 
 const { Borrower, User } = require('../../models');

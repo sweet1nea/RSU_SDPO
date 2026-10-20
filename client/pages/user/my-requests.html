@@ -269,8 +269,9 @@
         validId?uploadBorrowerDocument('validId',validId):Promise.resolve(),
         authDoc?uploadBorrowerDocument('authorizationDocument',authDoc):Promise.resolve()
       ])
+        .then(()=>loadRequests())
         .then(()=>{
-          closeReupload();
+          closeReupload();closeDetails();renderFilters();renderCards();
           showToast('Documents updated — SDPO will review your request again.','success');
         })
         .catch(err=>{reuploadError.textContent=err.message;})

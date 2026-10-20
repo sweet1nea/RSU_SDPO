@@ -15,6 +15,7 @@ const {
 } = require('../models');
 const { notifyBorrower, notifyRoles } = require('../helpers/notify');
 const { logStatusChange } = require('../helpers/transactionLog');
+const { lastCorrectionLog } = require('../helpers/correction');
 const { formatDate, formatTime, parsePhtDateTime, toPhtWallClock, DAY_MS } = require('../helpers/dateHelper');
 const { formatEquipmentCode } = require('../helpers/equipmentCode');
 const { missingDocuments } = require('../constants/borrowerCategories');
@@ -186,23 +187,6 @@ function lastLogFor(t, newStatus) {
   const logs = (t.logs || []).filter((l) => l.newStatus === newStatus);
   if (logs.length === 0) return null;
   return logs.reduce((latest, l) => (new Date(l.changeDatetime) > new Date(latest.changeDatetime) ? l : latest));
-}
-
-// A "Return for Correction" review action (see exports.review below)
-// deliberately leaves the transaction's status unchanged — it always logs
-// oldStatus === newStatus === 'Acknowledged', same as the very first log
-// entry every transaction gets at creation time. The two are told apart by
-// order: the creation log is always the earliest log for a transaction, so
-// any LATER log with that same oldStatus===newStatus===Acknowledged shape
-// can only be a correction. There's no dedicated "action" column, so this
-// is the only signal available — if a third place ever logs that same
-// shape, it needs to be excluded here too.
-function lastCorrectionLog(t) {
-  if (!AWAITING_REVIEW.includes(t.transactionStatus)) return null;
-  const logs = (t.logs || []).slice().sort((a, b) => new Date(a.changeDatetime) - new Date(b.changeDatetime));
-  if (logs.length < 2) return null;
-  const latest = logs[logs.length - 1];
-  return latest.oldStatus === STATUS.ACKNOWLEDGED && latest.newStatus === STATUS.ACKNOWLEDGED ? latest : null;
 }
 
 // Dates are formatted in Philippine Time on the server (formatDate/

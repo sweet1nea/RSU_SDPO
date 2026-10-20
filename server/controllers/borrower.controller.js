@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const { Borrower, User, sequelize } = require('../models');
 const { requirementsFor, missingDocuments, BORROWER_CATEGORIES } = require('../constants/borrowerCategories');
 const { getClient } = require('../config/supabase');
+const { recordResubmission } = require('../helpers/correction');
 
 const DOCUMENTS_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'borrower-documents';
 
@@ -245,6 +246,7 @@ async function saveUploadedDocuments(borrower, ownerId, files) {
 exports.uploadDocuments = async (req, res) => {
   const borrower = await findOwnBorrower(req);
   const saved = await saveUploadedDocuments(borrower, req.user.id, req.files || {});
+  await recordResubmission(saved);
   res.json({ success: true, data: documentStatus(saved) });
 };
 
@@ -386,6 +388,7 @@ exports.confirmDocumentUpload = async (req, res) => {
     await deleteStorageObjectQuietly(previous);
   }
 
+  await recordResubmission(borrower);
   res.json({ success: true, data: documentStatus(borrower) });
 };
 
