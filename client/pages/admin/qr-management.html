@@ -70,6 +70,7 @@ body{font:13px/1.45 Inter,Arial,sans-serif}
 <script src="../../js/shared/confirm-dialog.js"></script>
 <script src="../../js/vendor/qrious.min.js"></script>
 <script src="../../js/vendor/jsQR.js"></script>
+  <script src="../../js/shared/qr-decode.js"></script>
 <script src="../../js/vendor/jspdf.umd.min.js"></script>
 <script>
 let tab='single',equipmentList=[],categories=[],items=[],visible=[];const $=s=>document.querySelector(s);
@@ -216,6 +217,7 @@ $('#png').onclick=downloadPNG;$('#printBtn').onclick=printLabels;$('#pdf').oncli
 const scanOverlay=$('#scanOverlay'),scanVideo=$('#scanVideo'),scanStatus=$('#scanStatus'),scanCameraSelect=$('#scanCameraSelect'),scanCameraRow=document.querySelector('.scan-camera-row');
 const scanCanvas=document.createElement('canvas');const scanCtx=scanCanvas.getContext('2d',{willReadFrequently:true});
 let scanStream=null,scanRAF=null,scanLocked=false;
+let scanFrameNo=0;
 const SCAN_CAMERA_KEY='rsuSdpoScanCameraId';
 
 function extractScanCode(text){
@@ -277,8 +279,10 @@ function scanTick(){
     scanCanvas.width=scanVideo.videoWidth;scanCanvas.height=scanVideo.videoHeight;
     scanCtx.drawImage(scanVideo,0,0,scanCanvas.width,scanCanvas.height);
     const frame=scanCtx.getImageData(0,0,scanCanvas.width,scanCanvas.height);
-    const result=jsQR(frame.data,frame.width,frame.height,{inversionAttempts:'attemptBoth'});
-    if(result&&result.data)handleScanResult(result.data);
+    scanFrameNo+=1;
+    // Contrast-enhanced attempts cost more, so run them on every 3rd frame only.
+    const decoded=RsuQrDecode.decodeQr(jsQR,frame.data,frame.width,frame.height,{enhance:scanFrameNo%3===0});
+    if(decoded)handleScanResult(decoded);
   }
   scanRAF=requestAnimationFrame(scanTick);
 }

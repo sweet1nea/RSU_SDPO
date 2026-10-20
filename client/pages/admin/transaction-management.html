@@ -215,6 +215,7 @@
   <script src="../../js/shared/equipment-ui.js"></script>
   <script src="../../js/shared/confirm-dialog.js"></script>
   <script src="../../js/vendor/jsQR.js"></script>
+  <script src="../../js/shared/qr-decode.js"></script>
   <script src="../../js/vendor/qrious.min.js"></script>
   <script>
     // This page needs a logged-in staff/admin/director user (approve/release/return
@@ -804,6 +805,7 @@
 const scanOverlay=document.getElementById('scanOverlay'),scanVideo=document.getElementById('scanVideo'),scanStatus=document.getElementById('scanStatus'),scanTitle=document.getElementById('scanTitle'),scanCameraSelect=document.getElementById('scanCameraSelect'),scanCameraRow=document.querySelector('.scan-camera-row');
 const scanCanvas=document.createElement('canvas');const scanCtx=scanCanvas.getContext('2d',{willReadFrequently:true});
 let scanStream=null,scanRAF=null,scanTargetBtn=null,scanExpectedCode=null,scanLegacyCode=null,scanLocked=false;
+let scanFrameNo=0;
 const SCAN_CAMERA_KEY='rsuSdpoScanCameraId';
 
 function extractScanCode(text){
@@ -880,8 +882,10 @@ function scanTick(){
     scanCanvas.width=scanVideo.videoWidth;scanCanvas.height=scanVideo.videoHeight;
     scanCtx.drawImage(scanVideo,0,0,scanCanvas.width,scanCanvas.height);
     const frame=scanCtx.getImageData(0,0,scanCanvas.width,scanCanvas.height);
-    const result=jsQR(frame.data,frame.width,frame.height,{inversionAttempts:'attemptBoth'});
-    if(result&&result.data)handleScanResult(result.data);
+    scanFrameNo+=1;
+    // Contrast-enhanced attempts cost more, so run them on every 3rd frame only.
+    const decoded=RsuQrDecode.decodeQr(jsQR,frame.data,frame.width,frame.height,{enhance:scanFrameNo%3===0});
+    if(decoded)handleScanResult(decoded);
   }
   scanRAF=requestAnimationFrame(scanTick);
 }
