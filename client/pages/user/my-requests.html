@@ -170,7 +170,9 @@
       });
     }
 
-    const filterList=['All','Acknowledged','For Approval','Approved','Rejected','Cancelled'];
+    // 'Acknowledged' also covers the legacy 'For Approval' status (same label), so there is one Awaiting Approval tab.
+    const filterList=['All','Acknowledged','Approved','Rejected','Cancelled'];
+    const matchesFilter=(r,f)=>f==='All'||(f==='Acknowledged'?['Acknowledged','For Approval'].includes(r.status):r.status===f);
     let active='All',term='';
     const ICONS={Pending:'◷',Acknowledged:'◷','For Approval':'◷',Approved:'✓',Rejected:'⊗',Cancelled:'⊘',Completed:'✓'};
     const icon=new Proxy(ICONS,{get:(o,k)=>o[k]||'•'});
@@ -178,7 +180,7 @@
     // single SDPO review-and-approval step. 'For Approval' is legacy-only.
     const statusLabel=s=>s==='Acknowledged'?'Awaiting Approval':s==='For Approval'?'Awaiting Approval':s;
     const classFor=s=>s.toLowerCase().replace(/\s+/g,'-');
-    const countFor=s=>s==='All'?requests.length:requests.filter(r=>r.status===s).length;
+    const countFor=s=>requests.filter(r=>matchesFilter(r,s)).length;
 
     const $=id=>document.getElementById(id);
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -190,7 +192,7 @@
     }
 
     function renderCards(){
-      const rows=requests.filter(r=>(active==='All'||r.status===active)&&`${r.id} ${r.status} ${r.items.map(x=>x[0]).join(' ')}`.toLowerCase().includes(term));
+      const rows=requests.filter(r=>matchesFilter(r,active)&&`${r.id} ${r.status} ${r.items.map(x=>x[0]).join(' ')}`.toLowerCase().includes(term));
       cards.innerHTML=rows.length?rows.map(r=>`<article class="request-card">
         <div class="request-card__head">
           <div><div class="request-id">Request #${esc(r.id)}</div><div class="requested-on">Requested: ${esc(r.date)}</div></div>

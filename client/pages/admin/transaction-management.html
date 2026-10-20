@@ -311,7 +311,7 @@
       const row=(type,label)=>`<div class="equipment-row" id="docRow-${type}"><div class="grow"><b id="docLabel-${type}">${label}</b><span class="sub" id="docStatus-${type}">Checking…</span></div><input type="file" id="docFile-${type}" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx" style="display:none"><button class="scan" id="docBtn-${type}" data-doc-type="${type}" data-doc-label="${esc(label+' — '+t.name)}">View Document</button></div>`;
       const verified=t.documentsVerified
         ?`<div class="ack">✓ Documents verified${t.documentsVerifiedBy?' by '+esc(t.documentsVerifiedBy):''}${t.timestamps&&t.timestamps.documentsVerified?' on '+esc(formatPHDateTime(t.timestamps.documentsVerified)):''}.</div>`
-        :['Pending','Acknowledged'].includes(t.status)?'<div class="damage-box show" id="docReviewNote">Review each submitted document, then use “Verify Documents &amp; Forward” to send this request to the Director.</div>':'';
+        :['Pending','Acknowledged'].includes(t.status)?'<div class="damage-box show" id="docReviewNote">Review each submitted document, then approve the request or return it for correction.</div>':'';
       // Admin/Staff review the actual documents (View Document / Upload)
       // only up through document verification — the step right before this
       // request reaches the Director. Once t.documentsVerified is true the
@@ -334,7 +334,7 @@
           verifyBtn.disabled=!!missing;
           verifyBtn.title=missing?'Missing: '+status.missing.join(', '):'';
           const note=document.getElementById('docReviewNote');
-          if(note)note.textContent=missing?'Missing required document(s): '+status.missing.join(', ')+'. Upload them below, or return the request for correction.':'Review each submitted document, then use “Verify Documents & Forward” to send this request to the Director.';
+          if(note)note.textContent=missing?'Missing required document(s): '+status.missing.join(', ')+'. Upload them below, or return the request for correction.':'Review each submitted document, then approve the request or return it for correction.';
         }
       }).catch(e=>{
         ['valid-id','authorization-document'].forEach(type=>{const el=document.getElementById('docStatus-'+type);if(el)el.textContent='Could not check: '+e.message;});
