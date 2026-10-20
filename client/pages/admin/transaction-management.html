@@ -816,7 +816,7 @@ function extractScanCode(text){
 // device is no longer available (e.g. the webcam was unplugged).
 async function startScanStream(deviceId){
   if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}
-  const constraints=deviceId?{video:{deviceId:{exact:deviceId}}}:{video:{facingMode:'environment'}};
+  const constraints=deviceId?{video:{deviceId:{exact:deviceId}}}:{video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}};
   try{
     scanStream=await navigator.mediaDevices.getUserMedia(constraints);
   }catch(e){
@@ -880,7 +880,7 @@ function scanTick(){
     scanCanvas.width=scanVideo.videoWidth;scanCanvas.height=scanVideo.videoHeight;
     scanCtx.drawImage(scanVideo,0,0,scanCanvas.width,scanCanvas.height);
     const frame=scanCtx.getImageData(0,0,scanCanvas.width,scanCanvas.height);
-    const result=jsQR(frame.data,frame.width,frame.height,{inversionAttempts:'dontInvert'});
+    const result=jsQR(frame.data,frame.width,frame.height,{inversionAttempts:'attemptBoth'});
     if(result&&result.data)handleScanResult(result.data);
   }
   scanRAF=requestAnimationFrame(scanTick);
