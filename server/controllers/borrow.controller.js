@@ -49,7 +49,8 @@ function httpError(statusCode, message, code, details) {
 // plus a per-equipment minimum-stock floor at 15% of total quantity
 // (project-leader decision, 2026-09-12; lowered from 25% to 15% on
 // 2026-10-02). Enforced for self-service requests; staff-created walk-in
-// transactions are left to staff judgment per spec.
+// transactions are not limited by it (emergency borrowing at the SDPO
+// office) — create() only records in the audit log when staff lend beyond it.
 function lowStockFloor(totalQuantity) {
   return Math.ceil(totalQuantity * 0.15);
 }
@@ -322,6 +323,10 @@ exports.create = async (req, res) => {
     throw httpError(403, restrictions[0].message, restrictions[0].code, { restrictions });
   }
 
+  // Filled in below when staff lend more than the self-service rules would
+  // allow (emergency walk-in), so the audit log can show it was deliberate.
+  let emergencyNote = '';
+
   const created = await sequelize.transaction(async (t) => {
     // FOR UPDATE row-locks the chosen units so two concurrent requests can't
     // both reserve the same physical item.
@@ -340,6 +345,19 @@ exports.create = async (req, res) => {
     items.forEach((i) => {
       byEquipment[i.equipmentId] = (byEquipment[i.equipmentId] || 0) + 1;
     });
+    // Staff walk-ins are not limited by the self-service caps / 15% floor,
+    // but any lending beyond them is recorded in the audit log.
+    const stockRows = await Equipment.findAll({ where: { id: Object.keys(byEquipment) }, transaction: t });
+    const beyondLimit = [];
+    for (const [equipmentId, qty] of Object.entries(byEquipment)) {
+      const eq = (stockRows || []).find((e) => String(e.id) === String(equipmentId));
+      if (eq && qty > maxBorrowableUnits(eq.availableQuantity, eq.totalQuantity)) {
+        beyondLimit.push(`${eq.equipmentName} (${eq.availableQuantity} of ${eq.totalQuantity} available before this transaction, ${qty} lent)`);
+      }
+    }
+    if (beyondLimit.length) {
+      emergencyNote = `. Emergency walk-in: stock was below the self-service minimum, so staff lent beyond the normal limit for ${beyondLimit.join('; ')}`;
+    }
     for (const [equipmentId, qty] of Object.entries(byEquipment)) {
       await Equipment.decrement('availableQuantity', { by: qty, where: { id: equipmentId }, transaction: t });
     }
@@ -365,7 +383,7 @@ exports.create = async (req, res) => {
     return txn;
   });
 
-  await logStatusChange(created.id, req.user.id, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, 'Request created by SDPO staff');
+  await logStatusChange(created.id, req.user.id, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, `Request created by SDPO staff${emergencyNote}`);
   const withIncludes = await Transaction.findByPk(created.id, { include: INCLUDE });
   res.status(201).json({ success: true, data: serialize(withIncludes) });
 };
