@@ -99,6 +99,7 @@
     .equip-badge--limited{background:#fef3c7;color:var(--amber)}
     .equip-badge--low{background:#fef2f2;color:#c10007}
     .equip-cap-note{font-size:10px;font-weight:500;color:var(--muted)}
+    .equip-emergency-note{font-size:11px;font-weight:500;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 9px;margin-top:6px;line-height:15px}
     .equip-min-stock-note{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#c10007;margin-top:5px}
     .equip-row__stepper{display:flex;align-items:center;gap:5px;flex-shrink:0;padding-top:1px}
     .equip-row__stepper button{width:25px;height:25px;border:1px solid var(--line);border-radius:7px;background:var(--page);font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
@@ -611,13 +612,20 @@
     // Information card with separate date/time inputs.
     let newTxnBorrowers=[],newTxnProducts=[],newTxnEquipmentRows=[],newTxnRowSeq=0;
     const newTxnProductById=id=>newTxnProducts.find(p=>p.id===id);
+    // Staff walk-in / emergency borrowing is NOT subject to the self-service
+    // limits (the 15% minimum-stock floor and the 2/1/0-per-request caps):
+    // someone standing at the SDPO office can take any unit that is still on
+    // the shelf, down to the very last one. Only the physical stock limits it.
+    // (POST /api/borrow reserves specific units and never applied those caps.)
+    const newTxnMaxUnits=p=>p?Math.max(0,p.available):0;
+    // True when self-service borrowing would be blocked outright for this item
+    // (critical stock or at the 15% floor) — used only to show staff an informational notice.
+    const newTxnBelowMinStock=p=>!!p&&p.available>0&&EquipmentUI.maxBorrowableUnits(p.available,p.total)===0;
 
     function newTxnEquipmentOptionsHtml(selectedId){
       const opts=newTxnProducts.map(p=>{
-        const cap=EquipmentUI.maxBorrowableUnits(p.available,p.total);
-        const blocked=p.available>0&&cap===0;
-        const disabled=!p.available||blocked;
-        const suffix=blocked?' — below minimum stock':cap>0?` — max ${cap} per request`:'';
+        const disabled=!p.available;
+        const suffix=newTxnBelowMinStock(p)?' — low stock (emergency borrowing)':'';
         return `<option value="${p.id}" ${p.id===selectedId?'selected':''} ${disabled?'disabled':''}>${esc(p.name)} (Available: ${p.available})${suffix}</option>`;
       }).join('');
       return `<option value="">Select equipment...</option>${opts}`;
@@ -628,14 +636,14 @@
         const product=newTxnProductById(row.equipmentId);
         const available=product?product.available:0;
         const level=product?EquipmentUI.stockLevel(available):'available';
-        const cap=product?EquipmentUI.maxBorrowableUnits(available,product.total):0;
-        const minBlocked=product&&cap===0;
+        const cap=newTxnMaxUnits(product);
+        const lowNote=newTxnBelowMinStock(product);
         if(product&&row.quantity>cap&&cap>0)row.quantity=cap;
         return `<div class="equip-row" data-row="${row.rowId}">
           <div class="equip-row__main">
             <select class="equip-row__select">${newTxnEquipmentOptionsHtml(row.equipmentId)}</select>
-            <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Max ${cap} per request</span>`:''}`:''}</div>
-            ${minBlocked?'<div class="equip-min-stock-note">⚠ Warning: stock is too low to borrow right now — choose a different item.</div>':''}
+            <div class="equip-row__meta">${product?`<span class="equip-badge equip-badge--${level}">${available} left</span>${cap>0?`<span class="equip-cap-note">Up to ${cap} (staff)</span>`:''}`:''}</div>
+            ${lowNote?'<div class="equip-emergency-note">Stock is at or below the minimum-stock threshold. Staff can still lend the remaining units for an emergency walk-in borrowing.</div>':''}
           </div>
           <div class="equip-row__stepper">
             <button type="button" class="equip-row__dec" ${row.quantity<=1?'disabled':''}>−</button>
@@ -656,7 +664,7 @@
       const rowId=Number(rowEl.dataset.row);
       const row=newTxnEquipmentRows.find(r=>r.rowId===rowId);
       if(e.target.closest('.equip-row__remove')){newTxnEquipmentRows=newTxnEquipmentRows.filter(r=>r.rowId!==rowId);renderNewTxnEquipmentList();return;}
-      if(e.target.closest('.equip-row__inc')){const p=newTxnProductById(row.equipmentId);if(p&&row.quantity<EquipmentUI.maxBorrowableUnits(p.available,p.total))row.quantity++;renderNewTxnEquipmentList();return;}
+      if(e.target.closest('.equip-row__inc')){const p=newTxnProductById(row.equipmentId);if(p&&row.quantity<newTxnMaxUnits(p))row.quantity++;renderNewTxnEquipmentList();return;}
       if(e.target.closest('.equip-row__dec')){if(row.quantity>1)row.quantity--;renderNewTxnEquipmentList();}
     });
     document.getElementById('newTxnEquipmentList').addEventListener('change',e=>{
