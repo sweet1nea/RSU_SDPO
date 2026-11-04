@@ -245,6 +245,10 @@
       '<div class="notif-item' + (n.unread ? ' notif-item-unread' : '') + '" data-index="' + i + '">' +
         '<span class="notif-dot-type notif-type-' + n.type + '"></span>' +
         '<div class="notif-item-body"><p>' + esc(n.text) + '</p><span>' + esc(n.time) + '</span></div>' +
+        '<button type="button" class="notif-del' + (n.unread ? ' is-locked' : '') + '" data-del="1" aria-label="Delete notification"' +
+          (n.unread ? ' aria-disabled="true" title="Read this notification first, then you can delete it"' : ' title="Delete notification"') + '>' +
+          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>' +
+        '</button>' +
       '</div>'
     );
   }
@@ -273,6 +277,7 @@
             '<p class="shell-modal__meta" id="shellNotifDetailTime"></p>' +
             '<p class="shell-modal__message" id="shellNotifDetailMessage"></p>' +
           '</div>' +
+          '<div class="shell-modal__footer"><button type="button" class="shell-modal__delete" id="shellNotifDetailDelete">Delete</button></div>' +
         '</div>' +
       '</div>'
     );
@@ -295,7 +300,10 @@
     updateBellState();
   }
 
+  var currentDetail = null;
+
   function openNotifDetail(n) {
+    currentDetail = n;
     var overlay = document.getElementById('shellNotifDetailOverlay');
     if (!overlay) return;
     document.getElementById('shellNotifDetailTime').textContent = n.time;
@@ -330,30 +338,60 @@
 
     // Opening a notification — like opening an email — marks it read and
     // shows the full message instead of the panel's truncated preview.
+    function markOneRead(n) {
+      if (!n.unread) return;
+      n.unread = false;
+      updateBellState();
+      if (n.dbId) {
+        // Kept so a quick Delete waits for the server to record the read.
+        n.readRequest = shellApiFetch('/api/notifications/' + n.dbId + '/read', { method: 'PATCH' }).catch(function () {});
+      }
+    }
+
+    // Only a notification that has been read can be deleted (the server
+    // enforces this too — see notification.controller remove()).
+    function deleteNotification(n) {
+      if (!n || n.unread) return;
+      var idx = NOTIFICATIONS.indexOf(n);
+      if (idx === -1) return;
+      NOTIFICATIONS.splice(idx, 1);
+      refreshNotifPanel();
+      if (detailOverlay) detailOverlay.hidden = true;
+      if (!n.dbId) return;
+      Promise.resolve(n.readRequest)
+        .then(function () { return shellApiFetch('/api/notifications/' + n.dbId, { method: 'DELETE' }); })
+        .catch(function () {
+          // Put it back if the server refused, so the panel matches the data.
+          NOTIFICATIONS.splice(Math.min(idx, NOTIFICATIONS.length), 0, n);
+          refreshNotifPanel();
+        });
+    }
+
     list.addEventListener('click', function (e) {
       var item = e.target.closest('.notif-item');
       if (!item) return;
       var n = NOTIFICATIONS[Number(item.getAttribute('data-index'))];
       if (!n) return;
-      openNotifDetail(n);
-      if (n.unread) {
-        n.unread = false;
-        item.classList.remove('notif-item-unread');
-        updateBellState();
-        if (n.dbId) {
-          shellApiFetch('/api/notifications/' + n.dbId + '/read', { method: 'PATCH' }).catch(function () {});
-        }
+      if (e.target.closest('.notif-del')) {
+        deleteNotification(n);
+        return;
       }
+      markOneRead(n);
+      item.classList.remove('notif-item-unread');
+      openNotifDetail(n);
+      refreshNotifPanel();
     });
+
+    var detailDelete = document.getElementById('shellNotifDetailDelete');
+    if (detailDelete) detailDelete.addEventListener('click', function () { deleteNotification(currentDetail); });
 
     if (detailClose) detailClose.addEventListener('click', function () { detailOverlay.hidden = true; });
     if (detailOverlay) detailOverlay.addEventListener('click', function (e) { if (e.target === detailOverlay) detailOverlay.hidden = true; });
 
     markRead.addEventListener('click', function () {
-      NOTIFICATIONS.forEach(function (n) { n.unread = false; });
-      document.querySelectorAll('.notif-item-unread').forEach(function (el) { el.classList.remove('notif-item-unread'); });
-      updateBellState();
-      shellApiFetch('/api/notifications/read-all', { method: 'PATCH' }).catch(function () {});
+      var readAll = shellApiFetch('/api/notifications/read-all', { method: 'PATCH' }).catch(function () {});
+      NOTIFICATIONS.forEach(function (n) { if (n.unread) n.readRequest = readAll; n.unread = false; });
+      refreshNotifPanel();
     });
 
     if (previewOpen === 'notifications') openPanel();
