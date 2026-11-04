@@ -245,10 +245,6 @@
       '<div class="notif-item' + (n.unread ? ' notif-item-unread' : '') + '" data-index="' + i + '">' +
         '<span class="notif-dot-type notif-type-' + n.type + '"></span>' +
         '<div class="notif-item-body"><p>' + esc(n.text) + '</p><span>' + esc(n.time) + '</span></div>' +
-        '<button type="button" class="notif-del' + (n.unread ? ' is-locked' : '') + '" data-del="1" aria-label="Delete notification"' +
-          (n.unread ? ' aria-disabled="true" title="Read this notification first, then you can delete it"' : ' title="Delete notification"') + '>' +
-          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>' +
-        '</button>' +
       '</div>'
     );
   }
@@ -257,7 +253,8 @@
     var items = NOTIFICATIONS.map(notifItemHtml).join('');
     return (
       '<div class="notif-panel" id="notifPanel" role="dialog" aria-label="Notifications">' +
-        '<div class="notif-panel-head"><h3>Notifications</h3><button class="notif-mark-read" id="notifMarkRead">Mark all as read</button></div>' +
+        '<div class="notif-panel-head"><h3>Notifications</h3><div class="notif-head-actions"><button class="notif-mark-read" id="notifMarkRead">Mark all as read</button><button class="notif-delete-all" id="notifDeleteAll" type="button">Delete all</button></div></div>' +
+        '<p class="notif-hint" id="notifHint" hidden></p>' +
         '<div class="notif-list" id="notifList">' + (items || '<div class="notif-empty">You\'re all caught up.</div>') + '</div>' +
       '</div>'
     );
@@ -277,7 +274,6 @@
             '<p class="shell-modal__meta" id="shellNotifDetailTime"></p>' +
             '<p class="shell-modal__message" id="shellNotifDetailMessage"></p>' +
           '</div>' +
-          '<div class="shell-modal__footer"><button type="button" class="shell-modal__delete" id="shellNotifDetailDelete">Delete</button></div>' +
         '</div>' +
       '</div>'
     );
@@ -300,10 +296,7 @@
     updateBellState();
   }
 
-  var currentDetail = null;
-
   function openNotifDetail(n) {
-    currentDetail = n;
     var overlay = document.getElementById('shellNotifDetailOverlay');
     if (!overlay) return;
     document.getElementById('shellNotifDetailTime').textContent = n.time;
@@ -348,42 +341,62 @@
       }
     }
 
-    // Only a notification that has been read can be deleted (the server
-    // enforces this too — see notification.controller remove()).
-    function deleteNotification(n) {
-      if (!n || n.unread) return;
-      var idx = NOTIFICATIONS.indexOf(n);
-      if (idx === -1) return;
-      NOTIFICATIONS.splice(idx, 1);
-      refreshNotifPanel();
-      if (detailOverlay) detailOverlay.hidden = true;
-      if (!n.dbId) return;
-      Promise.resolve(n.readRequest)
-        .then(function () { return shellApiFetch('/api/notifications/' + n.dbId, { method: 'DELETE' }); })
-        .catch(function () {
-          // Put it back if the server refused, so the panel matches the data.
-          NOTIFICATIONS.splice(Math.min(idx, NOTIFICATIONS.length), 0, n);
-          refreshNotifPanel();
-        });
+    // "Delete all" removes every notification that has already been read.
+    // Unread ones are kept (they must be read first) — the server enforces
+    // this too (notification.controller removeAllRead). Two taps: the first
+    // asks to confirm, so a stray tap on a phone can't wipe the list.
+    var deleteAll = document.getElementById('notifDeleteAll');
+    var hint = document.getElementById('notifHint');
+    var confirmTimer = null;
+    function showHint(text) {
+      if (!hint) return;
+      hint.textContent = text; hint.hidden = !text;
+      if (text) setTimeout(function () { if (hint.textContent === text) hint.hidden = true; }, 5000);
     }
+    function resetDeleteAll() {
+      clearTimeout(confirmTimer);
+      if (deleteAll) { deleteAll.textContent = 'Delete all'; deleteAll.classList.remove('is-confirm'); }
+    }
+    if (deleteAll) deleteAll.addEventListener('click', function () {
+      var readCount = NOTIFICATIONS.filter(function (n) { return !n.unread; }).length;
+      var unreadCount = NOTIFICATIONS.length - readCount;
+      if (!readCount) {
+        resetDeleteAll();
+        showHint(unreadCount ? 'Only read notifications can be deleted. Open them or tap "Mark all as read" first.' : 'There are no notifications to delete.');
+        return;
+      }
+      if (!deleteAll.classList.contains('is-confirm')) {
+        deleteAll.textContent = 'Delete ' + readCount + ' read?';
+        deleteAll.classList.add('is-confirm');
+        showHint(unreadCount ? unreadCount + ' unread notification' + (unreadCount === 1 ? '' : 's') + ' will be kept.' : '');
+        confirmTimer = setTimeout(resetDeleteAll, 4000);
+        return;
+      }
+      resetDeleteAll();
+      var removed = NOTIFICATIONS.filter(function (n) { return !n.unread; });
+      var pending = Promise.all(removed.map(function (n) { return n.readRequest; }));
+      NOTIFICATIONS = NOTIFICATIONS.filter(function (n) { return n.unread; });
+      refreshNotifPanel();
+      showHint(removed.length + ' read notification' + (removed.length === 1 ? '' : 's') + ' deleted.');
+      pending.then(function () { return shellApiFetch('/api/notifications/read', { method: 'DELETE' }); })
+        .catch(function () {
+          NOTIFICATIONS = removed.concat(NOTIFICATIONS).sort(function (a, b) { return (b.dbId || 0) - (a.dbId || 0); });
+          refreshNotifPanel();
+          showHint('Could not delete notifications. Please try again.');
+        });
+    });
 
     list.addEventListener('click', function (e) {
       var item = e.target.closest('.notif-item');
       if (!item) return;
       var n = NOTIFICATIONS[Number(item.getAttribute('data-index'))];
       if (!n) return;
-      if (e.target.closest('.notif-del')) {
-        deleteNotification(n);
-        return;
-      }
       markOneRead(n);
       item.classList.remove('notif-item-unread');
       openNotifDetail(n);
       refreshNotifPanel();
     });
 
-    var detailDelete = document.getElementById('shellNotifDetailDelete');
-    if (detailDelete) detailDelete.addEventListener('click', function () { deleteNotification(currentDetail); });
 
     if (detailClose) detailClose.addEventListener('click', function () { detailOverlay.hidden = true; });
     if (detailOverlay) detailOverlay.addEventListener('click', function (e) { if (e.target === detailOverlay) detailOverlay.hidden = true; });

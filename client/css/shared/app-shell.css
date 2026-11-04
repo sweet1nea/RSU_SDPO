@@ -105,10 +105,11 @@ main{
 .notif-type-good{background:var(--green)}
 .notif-item-body p{margin:0;font-size:12px;line-height:17px;color:var(--ink);font-weight:500}
 .notif-item-body span{display:block;margin-top:3px;font-size:10px;color:var(--muted)}
-.notif-del{margin-left:auto;align-self:flex-start;flex-shrink:0;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-.notif-del:hover{background:rgba(220,38,38,.1);color:#dc2626}
-.notif-del.is-locked{opacity:.35;cursor:not-allowed}
-.notif-del.is-locked:hover{background:transparent;color:var(--muted)}
+.notif-head-actions{display:flex;align-items:center;gap:12px}
+.notif-delete-all{border:0;background:transparent;color:#dc2626;font-size:11px;font-weight:600;padding:0;cursor:pointer}
+.notif-delete-all.is-confirm{background:#dc2626;color:#fff;padding:4px 9px;border-radius:999px}
+.notif-hint{margin:0;padding:8px 16px;font-size:11px;line-height:15px;color:var(--muted);background:var(--softline);border-bottom:1px solid var(--softline)}
+.notif-hint[hidden]{display:none}
 .notif-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:12px}
 
 /* Notification detail — shell-owned so it renders correctly on pages that
@@ -122,9 +123,6 @@ main{
 .shell-modal__close img{width:14px;height:14px}
 .shell-modal__body{padding:16px 18px}
 .shell-modal__meta{margin:0 0 10px;color:var(--muted);font-size:12px}
-.shell-modal__footer{display:flex;justify-content:flex-end;padding:0 18px 16px}
-.shell-modal__delete{border:1px solid #fecaca;background:#fff5f5;color:#b91c1c;font-size:13px;font-weight:600;padding:8px 16px;border-radius:9px;cursor:pointer}
-.shell-modal__delete:hover{background:#fee2e2}
 .shell-modal__message{margin:0;font-size:14px;line-height:1.6;color:var(--ink)}
 
 /* Outline icons are flat SVGs with a baked-in stroke color, so they need an

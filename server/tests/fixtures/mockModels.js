@@ -14,7 +14,7 @@ module.exports = function buildMockModels() {
     Item: { findAll: jest.fn() },
     Borrower: { findAll: jest.fn() },
     User: { findAll: jest.fn(), count: jest.fn(), findByPk: jest.fn() },
-    Notification: { create: jest.fn(), bulkCreate: jest.fn(), findOne: jest.fn(), findAll: jest.fn() },
+    Notification: { create: jest.fn(), bulkCreate: jest.fn(), findOne: jest.fn(), findAll: jest.fn(), destroy: jest.fn() },
     TransactionLog: { create: jest.fn() },
     MaintenanceFee: { findAll: jest.fn() },
     DamageLossRecord: { findAll: jest.fn() },
