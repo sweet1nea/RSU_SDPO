@@ -17,7 +17,7 @@ jest.mock('../../models', () => ({
   Borrower: { findOne: jest.fn(), findByPk: jest.fn() },
   User: { findByPk: jest.fn() },
   Item: { findAll: jest.fn(), update: jest.fn(), count: jest.fn() },
-  Equipment: { findByPk: jest.fn(), decrement: jest.fn(), increment: jest.fn() },
+  Equipment: { findByPk: jest.fn(), findAll: jest.fn(), decrement: jest.fn(), increment: jest.fn() },
   Category: {},
   TransactionLog: {},
   DamageLossRecord: { findAll: jest.fn() },
@@ -316,6 +316,41 @@ describe('createSelfRequest — idempotent submission and notifications', () => 
     );
     const created = Transaction.create.mock.calls[0][0];
     expect(created.expectedReturnDatetime.toISOString()).toBe(`${year}-03-10T07:00:00.000Z`);
+  });
+});
+
+describe('create — staff walk-in / emergency borrowing is not limited by the self-service caps', () => {
+  const staffReq = (itemIds) => ({ user: { id: 2 }, body: { borrowerId: 5, itemIds, expectedReturnDatetime: FUTURE, purpose: 'Emergency match' } });
+
+  function arrange(equipmentRow) {
+    Borrower.findByPk.mockResolvedValue({ ...READY_BORROWER, user: { id: 9, accountStatus: 'Active' } });
+    Item.findAll.mockResolvedValue([{ id: 11, equipmentId: 3, availabilityStatus: 'Available' }]);
+    Item.update.mockResolvedValue([1]);
+    Equipment.findAll.mockResolvedValue([equipmentRow]);
+    Equipment.decrement.mockResolvedValue();
+    Transaction.create.mockResolvedValue({ id: 50 });
+    Transaction.findByPk.mockResolvedValue(stubFindByPkResult({ id: 50 }));
+    const { TransactionDetail } = require('../../models');
+    TransactionDetail.bulkCreate.mockResolvedValue();
+  }
+
+  test('lends the last units at critical stock and records it as an emergency walk-in in the audit log', async () => {
+    arrange({ id: 3, equipmentName: 'Pickle Ball', availableQuantity: 2, totalQuantity: 10 });
+    const res = mockRes();
+    await ctrl.create(staffReq([11]), res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(Equipment.decrement).toHaveBeenCalledWith('availableQuantity', expect.objectContaining({ by: 1 }));
+    const remarks = logStatusChange.mock.calls[0][4];
+    expect(remarks).toContain('Request created by SDPO staff');
+    expect(remarks).toContain('Emergency walk-in');
+    expect(remarks).toContain('Pickle Ball (2 of 10 available');
+  });
+
+  test('a normal walk-in within the self-service limit keeps the plain audit remark', async () => {
+    arrange({ id: 3, equipmentName: 'Volleyball', availableQuantity: 9, totalQuantity: 12 });
+    await ctrl.create(staffReq([11]), mockRes());
+    expect(logStatusChange.mock.calls[0][4]).toBe('Request created by SDPO staff');
   });
 });
 
