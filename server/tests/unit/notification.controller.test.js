@@ -48,6 +48,32 @@ describe('DELETE /api/notifications/:id (remove)', () => {
   });
 });
 
+describe('DELETE /api/notifications/read (removeAllRead)', () => {
+  test('destroys only the requesting user\'s READ in-app notifications', async () => {
+    Notification.destroy.mockResolvedValue(3);
+    const res = mockRes();
+    await ctrl.removeAllRead({ user: { id: 9 } }, res);
+
+    expect(Notification.destroy).toHaveBeenCalledWith({
+      where: { userId: 9, deliveryChannel: 'System', isRead: true }
+    });
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { deleted: 3, message: 'Read notifications deleted.' }
+    });
+  });
+
+  test('reports nothing deleted when there are no read notifications', async () => {
+    Notification.destroy.mockResolvedValue(0);
+    const res = mockRes();
+    await ctrl.removeAllRead({ user: { id: 9 } }, res);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { deleted: 0, message: 'No read notifications to delete.' }
+    });
+  });
+});
+
 describe('GET /api/notifications (list)', () => {
   test('returns serialized notifications scoped to req.user.id, newest first', async () => {
     Notification.findAll.mockResolvedValue([

@@ -57,4 +57,17 @@ exports.remove = async (req, res) => {
   res.json({ success: true, data: { message: 'Notification deleted.' } });
 };
 
+// Deletes every notification the user has already read. Unread ones are
+// never touched — a notification must be read before it can be deleted.
+// Only the visible in-app ('System') rows are removed, matching list().
+exports.removeAllRead = async (req, res) => {
+  const deleted = await Notification.destroy({
+    where: { userId: req.user.id, deliveryChannel: 'System', isRead: true }
+  });
+  res.json({
+    success: true,
+    data: { deleted, message: deleted ? 'Read notifications deleted.' : 'No read notifications to delete.' }
+  });
+};
+
 exports.serialize = serialize;

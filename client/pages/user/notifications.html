@@ -13,6 +13,11 @@
     .panel-head{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.8px solid var(--color-border-soft)}
     .panel-head h2{margin:0;font-size:15px;color:var(--color-text-900)}
     .unread-count{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;background:var(--color-danger-strong);color:#fff;font-size:11px;line-height:15px;vertical-align:2px}
+    .head-actions{display:flex;align-items:center;gap:14px}
+    .delete-all{color:var(--color-danger-strong)}
+    .delete-all.is-confirm{background:var(--color-danger-strong);color:#fff;padding:4px 10px;border-radius:999px}
+    .del-hint{margin:0;padding:8px 16px;font-size:12px;color:var(--color-text-500);background:var(--color-surface-muted)}
+    .del-hint[hidden]{display:none}
     .mark-read{border:0;background:transparent;color:var(--color-accent-green-dark);font-size:12px;font-weight:600;padding:0}
 
     .tabs{padding:12px 16px;display:flex;gap:6px;border-bottom:0.8px solid var(--color-border-soft)}
@@ -52,8 +57,9 @@
     <section class="panel">
       <div class="panel-head">
         <h2>All Notifications<span class="unread-count" id="unreadHead">0</span></h2>
-        <button type="button" class="mark-read" id="markRead">Mark all as read</button>
+        <div class="head-actions"><button type="button" class="mark-read" id="markRead">Mark all as read</button><button type="button" class="mark-read delete-all" id="deleteAll">Delete all</button></div>
       </div>
+      <p class="del-hint" id="delHint" hidden></p>
       <div class="tabs">
         <button type="button" class="tab-pill active" data-filter="all">All <em id="countAll">0</em></button>
         <button type="button" class="tab-pill" data-filter="unread">Unread <em id="countUnread">0</em></button>
@@ -110,7 +116,6 @@
         <div class="note-content">
           <div class="note-top"><span class="note-title">${esc(n.type)}</span><span class="note-time">${timeAgo(n.sentAt)}${n.unread?'<i class="dot"></i>':''}</span></div>
           <p class="note-desc">${esc(n.message)}</p>
-          <button type="button" class="note-view note-delete" data-action="delete" ${n.unread ? 'disabled title="Mark as read first"' : ''}>Delete</button>
         </div>
       </article>`;
       }).join(''):'<div class="empty-state"><p class="empty-state__title">You\'re all caught up</p><p>No unread notifications right now.</p></div>';
@@ -136,20 +141,21 @@
       counts();render();
       apiFetch('/api/notifications/read-all',{method:'PATCH'}).catch(()=>{});
     });
+    const deleteAllBtn=$('deleteAll'),delHint=$('delHint');let delTimer=null;
+    function hint(t){delHint.textContent=t;delHint.hidden=!t;if(t)setTimeout(()=>{if(delHint.textContent===t)delHint.hidden=true},5000);}
+    function resetDel(){clearTimeout(delTimer);deleteAllBtn.textContent='Delete all';deleteAllBtn.classList.remove('is-confirm');}
+    deleteAllBtn.addEventListener('click',()=>{
+      const read=notices.filter(n=>!n.unread).length,unread=notices.length-read;
+      if(!read){resetDel();hint(unread?'Only read notifications can be deleted. Open them or tap "Mark all as read" first.':'There are no notifications to delete.');return;}
+      if(!deleteAllBtn.classList.contains('is-confirm')){deleteAllBtn.textContent='Delete '+read+' read?';deleteAllBtn.classList.add('is-confirm');hint(unread?unread+' unread notification'+(unread===1?'':'s')+' will be kept.':'');delTimer=setTimeout(resetDel,4000);return;}
+      resetDel();
+      const before=notices;
+      notices=notices.filter(n=>n.unread);counts();render();hint(read+' read notification'+(read===1?'':'s')+' deleted.');
+      apiFetch('/api/notifications/read',{method:'DELETE'}).catch(()=>{notices=before;counts();render();hint('Could not delete notifications. Please try again.');});
+    });
     list.addEventListener('click',e=>{
       const note=e.target.closest('.note');
       if(!note)return;
-      const deleteBtn=e.target.closest('[data-action="delete"]');
-      if(deleteBtn){
-        if(note.classList.contains('unread'))return;
-        const n=notices.find(x=>x.dbId===Number(note.dataset.id));
-        if(!n)return;
-        apiFetch('/api/notifications/'+n.dbId,{method:'DELETE'}).then(()=>{
-          notices=notices.filter(x=>x.dbId!==n.dbId);
-          counts();render();
-        }).catch(err=>console.error('Could not delete notification:',err.message));
-        return;
-      }
       if(!note.classList.contains('unread'))return;
       const n=notices.find(x=>x.dbId===Number(note.dataset.id));
       if(!n)return;
