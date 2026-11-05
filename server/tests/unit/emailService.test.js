@@ -103,3 +103,20 @@ describe('emailService.sendEmail', () => {
     expect(errorSpy).not.toHaveBeenCalledWith(expect.any(String), credentialBearingError);
   });
 });
+
+describe('email HTML layout', () => {
+  test('sendEmail sends an HTML body with greeting, message, notice and footer alongside the plain text', async () => {
+    const sendMail = jest.fn().mockResolvedValue({ messageId: 'x' });
+    getTransport.mockReturnValue({ sendMail });
+
+    await sendEmail('a@b.com', 'S', 'Your request <was> submitted.', { heading: 'Request Submitted', recipientName: 'Juan Dela Cruz' });
+
+    const arg = sendMail.mock.calls[0][0];
+    expect(arg.text).toBe('Your request <was> submitted.');
+    expect(arg.html).toContain('Request Submitted');
+    expect(arg.html).toContain('Dear <b>Juan Dela Cruz</b>,');
+    expect(arg.html).toContain('Your request &lt;was&gt; submitted.');
+    expect(arg.html).toContain('DO NOT REPLY TO THIS EMAIL.');
+    expect(arg.html).toContain('All rights reserved.');
+  });
+});

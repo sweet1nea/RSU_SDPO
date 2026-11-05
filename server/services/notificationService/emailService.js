@@ -9,11 +9,12 @@
 // out.
 
 const { getTransport } = require('../../config/mailer');
+const { buildEmailHtml } = require('./emailTemplate');
 
 const DEFAULT_FROM = process.env.GMAIL_SMTP_USER || 'no-reply@rsu-sdpo.local';
 
-// sendEmail(to, subject, message) -> Promise<{ success, messageId? , error? }>
-async function sendEmail(to, subject, message) {
+// sendEmail(to, subject, message, { heading, recipientName }?) -> Promise<{ success, messageId? , error? }>
+async function sendEmail(to, subject, message, opts = {}) {
   if (!to) {
     return { success: false, error: 'No recipient email address provided' };
   }
@@ -24,7 +25,8 @@ async function sendEmail(to, subject, message) {
       from: DEFAULT_FROM,
       to,
       subject,
-      text: message
+      text: message,
+      html: buildEmailHtml({ heading: opts.heading, recipientName: opts.recipientName, message })
     });
 
     return { success: true, messageId: info && info.messageId };

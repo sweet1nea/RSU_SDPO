@@ -2,6 +2,7 @@
 
 const { Notification, User } = require('../models');
 const { sendEmail } = require('../services/notificationService/emailService');
+const { recipientNameFor } = require('./recipientName');
 
 const STAFF_ROLES = ['Admin', 'Director', 'Staff'];
 
@@ -21,7 +22,10 @@ async function deliverExternalChannels(user, message, type) {
   if (!user) return;
   try {
     if (user.emailAddress) {
-      const result = await sendEmail(user.emailAddress, `RSU SDPO Notification: ${type}`, message);
+      const result = await sendEmail(user.emailAddress, `RSU SDPO Notification: ${type}`, message, {
+        heading: type,
+        recipientName: await recipientNameFor(user)
+      });
       if (!result.success) console.error(`[notify] Email to user ${user.id} failed: ${result.error}`);
     }
   } catch (err) {

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { User, Borrower, sequelize } = require('../models');
 const { sendEmail } = require('../services/notificationService/emailService');
+const { recipientNameFor } = require('../helpers/recipientName');
 const { CODE_EXPIRY_MINUTES, MAX_CODE_ATTEMPTS, generateCode, hashCode, compareCode } = require('../helpers/verificationCode');
 
 function signToken(user) {
@@ -82,7 +83,8 @@ async function issueVerificationCode(user, { force = false } = {}) {
   await sendEmail(
     user.emailAddress,
     'RSU SDPO - Verify Your Email',
-    `Your RSU SDPO email verification code is ${code}. This code expires in ${CODE_EXPIRY_MINUTES} minutes. If you did not request this, you can safely ignore this email.`
+    `Your RSU SDPO email verification code is ${code}. This code expires in ${CODE_EXPIRY_MINUTES} minutes. If you did not request this, you can safely ignore this email.`,
+    { heading: 'Email Verification', recipientName: await recipientNameFor(user) }
   );
   return true;
 }
@@ -99,7 +101,8 @@ async function issueResetCode(user) {
   await sendEmail(
     user.emailAddress,
     'RSU SDPO - Password Reset Code',
-    `Your RSU SDPO password reset code is ${code}. This code expires in ${CODE_EXPIRY_MINUTES} minutes. If you did not request this, you can safely ignore this email.`
+    `Your RSU SDPO password reset code is ${code}. This code expires in ${CODE_EXPIRY_MINUTES} minutes. If you did not request this, you can safely ignore this email.`,
+    { heading: 'Password Reset', recipientName: await recipientNameFor(user) }
   );
 }
 

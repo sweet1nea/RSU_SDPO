@@ -58,7 +58,7 @@ describe('helpers/notify.js', () => {
       User.findByPk.mockResolvedValue(makeUser());
       await notifyBorrower(1, 'Request approved', 'Approval');
 
-      expect(sendEmail).toHaveBeenCalledWith('user@example.com', 'RSU SDPO Notification: Approval', 'Request approved');
+      expect(sendEmail).toHaveBeenCalledWith('user@example.com', 'RSU SDPO Notification: Approval', 'Request approved', expect.objectContaining({ heading: 'Approval' }));
       expect(Notification.create).toHaveBeenCalledTimes(1);
       expect(Notification.bulkCreate).not.toHaveBeenCalled();
     });
