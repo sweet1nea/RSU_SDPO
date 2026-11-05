@@ -8,7 +8,7 @@
 // The on-screen preview (client/pages/admin/reports-analytics.html) mirrors
 // the same structure.
 //
-// Paper: A4 (210 x 297 mm), portrait for up to 5 columns, landscape for
+// Paper: Legal / long bond (8.5 x 13 in, 215.9 x 330.2 mm), portrait for up to 5 columns, landscape for
 // wider tables — identical rule in PDF, Excel and the on-screen print view.
 
 const fs = require('fs');
@@ -33,7 +33,7 @@ const LETTERHEAD = {
   office: 'SPORTS DEVELOPMENT PROGRAM OFFICE'
 };
 
-const PAGE = { size: 'A4', margin: 40, footerHeight: 24 };
+const PAGE = { size: 'LEGAL', margin: 40, footerHeight: 24 };
 const FONT = { body: 9, table: 8.5, small: 8, title: 13 };
 const ROW_PADDING = 4;
 const LOGO_SIZE = 50;
@@ -243,9 +243,9 @@ async function sendExcel(res, reportData, filenameBase) {
   const sheetName = (title || 'Report').replace(/[\\/?*[\]:]/g, ' ').substring(0, 31) || 'Report';
   const sheet = workbook.addWorksheet(sheetName);
 
-  // OOXML paper size 9 = A4; orientation follows the same rule as the PDF.
+  // OOXML paper size 5 = Legal (8.5 x 13 in); orientation follows the same rule as the PDF.
   sheet.pageSetup = {
-    paperSize: 9,
+    paperSize: 5,
     orientation: isLandscape(heads) ? 'landscape' : 'portrait',
     fitToPage: true,
     fitToWidth: 1,
