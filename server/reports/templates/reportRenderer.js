@@ -8,7 +8,7 @@
 // The on-screen preview (client/pages/admin/reports-analytics.html) mirrors
 // the same structure.
 //
-// Paper: Legal / long bond (8.5 x 13 in, 215.9 x 330.2 mm), portrait for up to 5 columns, landscape for
+// Paper: Long bond / Folio (8.5 x 13 in, 215.9 x 330.2 mm), portrait for up to 5 columns, landscape for
 // wider tables — identical rule in PDF, Excel and the on-screen print view.
 
 const fs = require('fs');
@@ -23,6 +23,8 @@ const { formatDateTime } = require('../../helpers/dateHelper');
 const IMAGES_DIR = path.join(__dirname, '..', '..', '..', 'client', 'assets', 'images');
 const SEAL_PATH = path.join(IMAGES_DIR, 'rsu-university-seal.png'); // Romblon State University seal (left)
 const LOGO_PATH = path.join(IMAGES_DIR, 'rsu-sdpo-logo.png'); // SDPO logo (right)
+const ISO_PATH = path.join(IMAGES_DIR, 'iso-certification.png'); // ISO 9001 certification badge (right)
+const ISO_EXISTS = fs.existsSync(ISO_PATH);
 const SEAL_EXISTS = fs.existsSync(SEAL_PATH);
 const LOGO_EXISTS = fs.existsSync(LOGO_PATH);
 
@@ -33,7 +35,7 @@ const LETTERHEAD = {
   office: 'SPORTS DEVELOPMENT PROGRAM OFFICE'
 };
 
-const PAGE = { size: 'LEGAL', margin: 40, footerHeight: 24 };
+const PAGE = { size: [612, 936], margin: 40, footerHeight: 24 };
 const FONT = { body: 9, table: 8.5, small: 8, title: 13 };
 const ROW_PADDING = 4;
 const LOGO_SIZE = 50;
@@ -112,29 +114,34 @@ function sendPdf(res, reportData, filenameBase) {
   // ---- Letterhead: university seal (left), centered university block,
   // SDPO logo (right), rule, office name, rule, report title. ----
   const headerTop = doc.page.margins.top;
+  // Same header as the official BSEF form (SDPO-00-001): university seal and
+  // SDPO logo on the left, centered text, ISO badge on the right.
+  const ISO_W = 82;
   [
-    [SEAL_EXISTS, SEAL_PATH, startX],
-    [LOGO_EXISTS, LOGO_PATH, endX - LOGO_SIZE]
-  ].forEach(([exists, file, x]) => {
+    [SEAL_EXISTS, SEAL_PATH, startX, LOGO_SIZE],
+    [LOGO_EXISTS, LOGO_PATH, startX + LOGO_SIZE + 6, LOGO_SIZE],
+    [ISO_EXISTS, ISO_PATH, endX - ISO_W, ISO_W]
+  ].forEach(([exists, file, x, size]) => {
     if (!exists) return;
     try {
-      doc.image(file, x, headerTop, { fit: [LOGO_SIZE, LOGO_SIZE], align: 'center', valign: 'center' });
+      doc.image(file, x, headerTop, { fit: [size, LOGO_SIZE], align: 'center', valign: 'center' });
     } catch (err) {
       console.error('reportRenderer.sendPdf: failed to draw letterhead image:', err);
     }
   });
 
-  const textX = startX + LOGO_SIZE + 10;
-  const textWidth = usableWidth - 2 * (LOGO_SIZE + 10);
+  const textX = startX + 2 * LOGO_SIZE + 12;
+  const textWidth = usableWidth - (2 * LOGO_SIZE + 12) - (ISO_W + 6);
   doc.fillColor('#000000');
   doc.font('Helvetica').fontSize(FONT.body).text(LETTERHEAD.republic, textX, headerTop + 4, { width: textWidth, align: 'center' });
-  doc.font('Helvetica-Bold').fontSize(15).text(LETTERHEAD.university, textX, doc.y, { width: textWidth, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(13).text(LETTERHEAD.university, textX, doc.y, { width: textWidth, align: 'center' });
   doc.font('Helvetica').fontSize(FONT.body).text(LETTERHEAD.place, textX, doc.y, { width: textWidth, align: 'center' });
 
   let y = Math.max(doc.y, headerTop + LOGO_SIZE) + 8;
-  doc.moveTo(startX, y).lineTo(endX, y).lineWidth(1.5).strokeColor('#000000').stroke();
-  y += 6;
-  doc.font('Helvetica-Bold').fontSize(11).text(LETTERHEAD.office, startX, y, { width: usableWidth, align: 'center' });
+  doc.moveTo(startX, y).lineTo(endX, y).lineWidth(2.5).strokeColor('#000000').stroke();
+  doc.moveTo(startX, y + 4).lineTo(endX, y + 4).lineWidth(0.8).strokeColor('#000000').stroke();
+  y += 10;
+  doc.font('Helvetica').fontSize(11).text(LETTERHEAD.office, startX, y, { width: usableWidth, align: 'center' });
   y = doc.y + 4;
   doc.moveTo(startX, y).lineTo(endX, y).lineWidth(1.5).strokeColor('#000000').stroke();
   y += 10;
@@ -243,9 +250,9 @@ async function sendExcel(res, reportData, filenameBase) {
   const sheetName = (title || 'Report').replace(/[\\/?*[\]:]/g, ' ').substring(0, 31) || 'Report';
   const sheet = workbook.addWorksheet(sheetName);
 
-  // OOXML paper size 5 = Legal (8.5 x 13 in); orientation follows the same rule as the PDF.
+  // OOXML paper size 14 = Folio (8.5 x 13 in, the Philippine long bond); orientation follows the same rule as the PDF.
   sheet.pageSetup = {
-    paperSize: 5,
+    paperSize: 14,
     orientation: isLandscape(heads) ? 'landscape' : 'portrait',
     fitToPage: true,
     fitToWidth: 1,
@@ -291,15 +298,17 @@ async function sendExcel(res, reportData, filenameBase) {
 
   // Seal (left) and SDPO logo (right) over the letterhead rows, never over
   // cell values.
+  const EMU = 9525; // EMUs per pixel
   const images = [
-    [SEAL_EXISTS, SEAL_PATH, 0.1],
-    [LOGO_EXISTS, LOGO_PATH, Math.max(colCount - 0.75, 1)]
+    [SEAL_EXISTS, SEAL_PATH, { nativeCol: 0, nativeColOff: 6 * EMU }, 52, 52],
+    [LOGO_EXISTS, LOGO_PATH, { nativeCol: 0, nativeColOff: 64 * EMU }, 52, 52],
+    [ISO_EXISTS, ISO_PATH, { col: Math.max(colCount - 1.2, 1) }, 100, 37]
   ];
-  images.forEach(([exists, file, col]) => {
+  images.forEach(([exists, file, pos, w, h]) => {
     if (!exists) return;
     try {
       const id = workbook.addImage({ filename: file, extension: 'png' });
-      sheet.addImage(id, { tl: { col, row: 0.1 }, ext: { width: 52, height: 52 } });
+      sheet.addImage(id, { tl: { ...pos, row: 0.1 }, ext: { width: w, height: h } });
     } catch (err) {
       console.error('reportRenderer.sendExcel: failed to embed letterhead image:', err);
     }

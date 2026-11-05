@@ -5,65 +5,99 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Borrowing Sports Equipment Form</title>
 <style>
-  @page{size:legal;margin:12mm}
+  /* Layout follows the official SDPO form SDPO-00-001 (long bond, 8.5 x 13 in). */
+  @page{size:8.5in 13in;margin:0}
   *{box-sizing:border-box}
-  body{margin:0;background:#e5e7eb;font-family:"Times New Roman",Times,serif;color:#000;font-size:11.5px}
-  .bar{position:sticky;top:0;background:#0f172a;color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;font-family:Arial,sans-serif;font-size:13px}
+  body{margin:0;background:#e5e7eb;font-family:"Times New Roman",Times,serif;color:#000;font-size:10pt}
+  .bar{position:sticky;top:0;z-index:5;background:#0f172a;color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;font-family:Arial,sans-serif;font-size:13px}
   .bar button{background:#009966;color:#fff;border:0;border-radius:6px;padding:7px 16px;font-weight:700;cursor:pointer}
-  .page{width:215.9mm;min-height:330.2mm;margin:14px auto;background:#fff;padding:12mm;box-shadow:0 2px 8px #0003}
-  .head{display:grid;grid-template-columns:70px 1fr 70px;align-items:center;text-align:center}
-  .head img{width:64px;height:64px;object-fit:contain}
-  .head small{display:block;font-size:11px}.head h2{margin:0;font-size:16px}
-  .office{text-align:center;font-weight:700;margin-top:6px;border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:3px 0;letter-spacing:.3px}
-  h3{text-align:center;margin:10px 0 8px;font-size:15px;letter-spacing:1px}
-  .row{display:flex;gap:16px;margin:5px 0}.row>div{flex:1}
-  .ul{display:inline-block;border-bottom:1px solid #000;min-width:60%;padding:0 4px;min-height:14px;vertical-align:bottom}
-  table{width:100%;border-collapse:collapse;margin:8px 0}
-  th,td{border:1px solid #000;padding:4px 6px;text-align:left;vertical-align:top}th{text-align:center;font-size:10.5px}
-  td.c{text-align:center}.sig{margin-top:12px}.sig .row{margin:10px 0}
-  .guide{margin-top:12px;font-size:10px}.guide b{font-size:10.5px}.guide ol{margin:2px 0 6px 16px;padding:0}
-  .foot{display:flex;justify-content:space-between;margin-top:10px;font-size:10px;border-top:1px solid #000;padding-top:4px}
-  .status{margin-top:6px;font-size:10px;text-align:right;font-style:italic}
-  @media print{body{background:#fff}.bar{display:none}.page{margin:0;box-shadow:none;width:auto;min-height:0;padding:0}}
+  .page{width:8.5in;height:13in;margin:14px auto;background:#fff;box-shadow:0 2px 8px #0003;position:relative;overflow:hidden;font-size:10pt}
+  .head{position:relative;height:1.05in;margin-top:.4in}
+  .head .seal1{position:absolute;left:.9in;top:0;width:.78in;height:.78in;object-fit:contain}
+  .head .seal2{position:absolute;left:1.72in;top:.02in;width:.74in;height:.74in;object-fit:contain}
+  .head .iso{position:absolute;right:.95in;top:.04in;width:1.15in;height:auto}
+  .head .txt{position:absolute;left:0;right:0;top:.1in;text-align:center;font-size:9pt;line-height:1.25}
+  .head .txt b{font-size:9.5pt}
+  .rule1{border-top:2.5px solid #000;margin-top:.02in}.rule2{border-top:1px solid #000;margin-top:2px}
+  .office{text-align:center;font-size:10.5pt;margin:2px 0 .1in;letter-spacing:.2px}
+  .rule3{border-top:1.5px solid #000}
+  .body{padding:0 1in}
+  h3{text-align:center;margin:.1in 0 .05in;font-size:10pt;font-weight:700}
+  .fields{display:grid;grid-template-columns:1fr 1fr;column-gap:.4in;row-gap:3px;font-size:8.5pt;font-family:Arial,Helvetica,sans-serif}
+  .f{display:flex;align-items:flex-end;gap:3px;min-height:15px}.f .u{flex:1;border-bottom:1px solid #000;padding:0 3px;min-height:12px;font-size:9pt}
+  .f.r{padding-left:.5in}
+  .lbl{font:700 8pt Arial,Helvetica,sans-serif;margin:.12in 0 3px}
+  table.eq{width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt}
+  table.eq th{border:1px solid #000;padding:5px 4px;font-weight:700;text-align:center;line-height:1.5}
+  table.eq td{border:1px solid #000;height:.3in;padding:2px 5px;font-size:9pt}
+  table.eq td.c{text-align:center}
+  .codes{font-size:7.5pt;color:#333}
+  .pu{margin-top:.22in;font:italic 700 8pt Arial,Helvetica,sans-serif}
+  .pu .line{display:flex;align-items:flex-end;gap:4px;margin-bottom:6px}.pu .line .u{border-bottom:1px solid #000;font:normal 9pt Arial,Helvetica,sans-serif;padding:0 3px;min-height:12px}
+  .sigrow{display:grid;grid-template-columns:1.15fr 1fr;column-gap:.14in;font:700 8pt Arial,Helvetica,sans-serif;margin-bottom:4px}
+  .sigrow .f .u{min-height:12px}
+  .sigblk{margin-top:.22in}
+  .sep{border-top:2px solid #b8b8b8;margin:.24in 0 .12in}
+  .gl{font:700 9.5pt Arial,Helvetica,sans-serif;margin-bottom:2px}
+  table.g{width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt}
+  table.g td,table.g th{border:1px solid #000;padding:7px 6px;vertical-align:middle;text-align:left}
+  table.g th{font-style:italic;font-weight:700;padding:3px 6px}
+  table.g td.k{width:32%}
+  table.g td.ital{font-style:italic;line-height:1.35}
+  table.g ol{margin:0;padding-left:1.6em}
+  .foot{position:absolute;left:1.05in;right:.85in;bottom:.42in;display:flex;justify-content:space-between;align-items:flex-end;font-family:Arial,Helvetica,sans-serif}
+  .foot b{font-size:8pt}.foot small{display:block;font-size:8pt}
+  .foot .bsf{font-weight:700;font-size:8.5pt}.foot .bsf span{display:inline-block;min-width:.75in;border-bottom:1px solid #000;text-align:center}
+  @media print{body{background:#fff}.bar{display:none}.page{margin:0;box-shadow:none;width:8.5in;height:13in;page-break-after:avoid}}
 </style>
 </head>
 <body>
-<div class="bar"><button onclick="window.print()">Print</button><span>Print preview of the Borrowing Sports Equipment Form. Choose Legal (long) paper in the print dialog.</span></div>
+<div class="bar"><button onclick="window.print()">Print</button><span>Print preview of the Borrowing Sports Equipment Form (SDPO-00-001). Choose Long (8.5 x 13 in) paper, margins None.</span></div>
 <div class="page" id="page"></div>
 <script>
 (function(){
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var t=null;try{t=JSON.parse(localStorage.getItem('rsuSdpoBsefPrint')||'null')}catch(e){}
   var page=document.getElementById('page');
-  if(!t){page.innerHTML='<p>No transaction selected. Close this tab and use Print BSEF again.</p>';return}
+  if(!t){page.innerHTML='<p style="padding:1in">No transaction selected. Close this tab and use Print BSEF again.</p>';return}
   // One row per equipment type; quantity = number of units on the request.
   var groups=[],idx={};
   (t.items||[]).forEach(function(i){var k=i.name;if(!(k in idx)){idx[k]=groups.length;groups.push({name:k,codes:[],qty:0})}var g=groups[idx[k]];g.qty++;g.codes.push(i.code)});
-  var rows=groups.map(function(g,n){return '<tr><td class="c">'+(n+1)+'</td><td>'+esc(g.name)+'<div style="font-size:9.5px">'+esc(g.codes.join(', '))+'</div></td><td class="c">'+g.qty+'</td><td></td><td></td></tr>'}).join('');
-  for(var k=groups.length;k<6;k++)rows+='<tr><td class="c">'+(k+1)+'</td><td>&nbsp;</td><td></td><td></td><td></td></tr>';
-  var line='<span class="ul"></span>';
+  var rows=groups.map(function(g,n){return '<tr><td class="c">'+(n+1)+'</td><td>'+esc(g.name)+'<div class="codes">'+esc(g.codes.join(', '))+'</div></td><td class="c">'+g.qty+'</td><td></td><td></td></tr>'}).join('');
+  for(var k=groups.length;k<5;k++)rows+='<tr><td></td><td></td><td></td><td></td><td></td></tr>';
+  var blank='<span class="u"></span>';
+  var due=esc(t.due||'')+(t.dueTime?' '+esc(t.dueTime):'');
   page.innerHTML=
-  '<div class="head"><img src="../../assets/images/rsu-university-seal.png" alt=""><div><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><small>Romblon, Philippines</small></div><img src="../../assets/images/rsu-sdpo-logo.png" alt=""></div>'+
-  '<div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div>'+
+  '<div class="head"><img class="seal1" src="../../assets/images/rsu-university-seal.png" alt=""><img class="seal2" src="../../assets/images/rsu-sdpo-logo.png" alt=""><div class="txt">Republic of the Philippines<br><b>ROMBLON STATE UNIVERSITY</b><br>Romblon, Philippines</div><img class="iso" src="../../assets/images/iso-certification.png" alt=""></div>'+
+  '<div class="rule1"></div><div class="rule2"></div>'+
+  '<div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="rule3"></div>'+
+  '<div class="body">'+
   '<h3>BORROWING SPORTS EQUIPMENT FORM</h3>'+
-  '<div class="row"><div>Borrower’s Name: <span class="ul">'+esc(t.name)+'</span></div><div>Date: <span class="ul">'+esc(t.date)+'</span></div></div>'+
-  '<div class="row"><div>College/Unit: <span class="ul">'+esc(t.college)+'</span></div><div>Time of Request: <span class="ul">'+esc(t.time)+'</span></div></div>'+
-  '<div class="row"><div>Borrower Category: <span class="ul">'+esc(t.type)+'</span></div><div>Transaction No.: <span class="ul">'+esc(t.id)+'</span></div></div>'+
-  '<p style="margin:8px 0 2px"><b>List of Requested Sports Equipment:</b></p>'+
-  '<table><thead><tr><th style="width:36px">NO.</th><th>NAME OF EQUIPMENT / ITEM CODES</th><th style="width:70px">QUANTITY</th><th style="width:90px">AVAILABLE EQUIPMENT</th><th style="width:110px">RETURNED CONDITION</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-  '<div>Purpose/Use: <span class="ul" style="min-width:85%">'+esc(t.purpose)+'</span></div>'+
-  '<div class="row"><div>Expected Return Date and Time: <span class="ul">'+esc(t.due)+' '+esc(t.dueTime||'')+'</span></div></div>'+
-  '<div class="sig">'+
-  '<div class="row"><div>Equipment Released by: '+line+'</div><div>Date and Time Released: '+line+'</div></div>'+
-  '<div class="row"><div>Equipment Received by: '+line+'</div><div>Date and Time Received: '+line+'</div></div>'+
-  '<div class="row"><div>Equipment Returned by: '+line+'</div><div>Date and Time Returned: '+line+'</div></div>'+
-  '<div class="row"><div>Equipment Received by: '+line+'</div><div>Date and Time Received: '+line+'</div></div>'+
-  '<div class="row" style="margin-top:18px"><div>Borrower’s Signature: '+line+'</div><div>Authorized Personnel Signature: '+line+'</div></div></div>'+
-  '<div class="guide"><b>Borrower’s Guidelines</b>'+
-  '<div><b>Steps:</b> Borrowing of equipment must be requested and completed at least 2–5 days prior to the scheduled event. The borrower must present any valid ID.</div>'+
-  '<div><b>Responsibilities of the Borrower:</b></div><ol><li>Use equipment responsibly and only for the stated purpose.</li><li>Return equipment on time and in good condition.</li><li>Report damages or issues promptly.</li></ol>'+
-  '<div><b>Return Process:</b> SDPO staff will inspect the equipment upon return. Damaged or lost equipment must be repaired or replaced by the borrower, depending on the extent of the damage.</div></div>'+
-  '<div class="foot"><span>SDPO-00-001</span><span>BSEF No.: '+esc(t.bsf)+'</span><span>Request status: '+esc(t.status)+'</span></div>';
+  '<div class="fields"><div class="f">Borrower’s Name:<span class="u">'+esc(t.name)+'</span></div><div class="f r">Date:<span class="u">'+esc(t.date)+'</span></div>'+
+  '<div class="f">College/Unit:<span class="u">'+esc(t.college)+'</span></div><div class="f r">Time of Request:<span class="u">'+esc(t.time)+'</span></div></div>'+
+  '<div class="lbl">List of Requested Sports Equipment:</div>'+
+  '<table class="eq"><thead><tr><th style="width:.45in">NO.</th><th>NAME OF EQUIPMENT</th><th style="width:1.2in">QUANTITY</th><th style="width:1in">NO. AVAILABLE EQUIPMENT</th><th style="width:.95in">RETURNED CONDITION</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+  '<div class="pu"><div class="line">Purpose/Use:<span class="u" style="flex:1;font-style:normal">'+esc(t.purpose)+'</span></div>'+
+  '<div class="line">Expected Return Date and Time:<span class="u" style="width:1.8in">'+due+'</span></div></div>'+
+  '<div class="sigblk">'+
+  '<div class="sigrow"><div class="f">Equipment Released by:'+blank+'</div><div class="f">Date and Time Released:'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f">Equipment Received by:'+blank+'</div><div class="f">Date and Time Received:'+blank+'</div></div>'+
+  '<div style="height:.2in"></div>'+
+  '<div class="sigrow"><div class="f">Equipment Returned by:'+blank+'</div><div class="f">Date and Time Returned:'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f">Equipment Received by:'+blank+'</div><div class="f">Date and Time Received:'+blank+'</div></div>'+
+  '<div style="height:.22in"></div>'+
+  '<div class="sigrow" style="grid-template-columns:1fr 1fr"><div class="f">Borrower’s Signature:'+blank+'</div><div class="f">Authorized Personnel Signature:'+blank+'</div></div>'+
+  '</div>'+
+  '<div class="sep"></div>'+
+  '<div class="gl">Borrower’s Guidelines:</div>'+
+  '<table class="g"><thead><tr><th style="width:32%">STEPS</th><th>GUIDELINES</th></tr></thead><tbody>'+
+  '<tr><td colspan="2" class="ital">Borrowing of equipment must be requested and completed at least 2-5 days prior to the scheduled event to ensure availability and proper preparation of the items. The borrowers must present any VALID ID.</td></tr>'+
+  '<tr><td class="k">Eligible to Borrow</td><td>Faculty, staff, and employee may borrow equipment/facilities.</td></tr>'+
+  '<tr><td class="k">Procedures</td><td><b>Step 1</b>: Fill out a borrower’s slip<br><b>Step 2</b>: Submit the fill out borrower’s slip.<br><b>Step 3</b>: Await approval from the Director, SDPO.<br><b>Step 4</b>: Sign the borrower’s slip upon approval.</td></tr>'+
+  '<tr><td class="k">Responsibilities of the Borrower</td><td><ol><li>Use equipment/facilities responsibly and only for the stated purpose.</li><li>Ensure the equipment is returned on time and in good condition.</li><li>Report damages or issues promptly.</li></ol></td></tr>'+
+  '<tr><td class="k">Return Process</td><td><ol><li>Return equipment on the agreed date.</li><li>The Sports Development Program Office staff will thoroughly inspect the equipment or facilities upon their return to assess for any damages or loss. If the returned equipment or facilities are found to be damaged or lost, the borrower will be held accountable and will be required to either repair or replace the items, depending on the extent of the damage.</li></ol></td></tr>'+
+  '</tbody></table></div>'+
+  '<div class="foot"><div><b>SDPO-00-001</b><small>Creation Date: 2024-10-17</small></div><div class="bsf">BSF No.: <span>'+esc(t.bsf)+'</span></div></div>';
 })();
 </script>
 </body>

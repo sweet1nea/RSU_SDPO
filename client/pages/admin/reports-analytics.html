@@ -19,6 +19,8 @@
        was missed at the time, so the preview kept showing the old
        single-centered-logo layout while the actual exported files did not. */
     .reportletter{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px}.reportletter{justify-content:space-between}.reportletter .seal{width:66px;height:66px;object-fit:contain;flex-shrink:0}.university{text-align:center;flex:1}.university small{color:#111;font-size:12px}.university h2{font-size:20px;margin:2px 0 1px;color:#000}.university .place{font-size:12px;color:#111}.letterrule{border-top:2px solid #000;margin:10px 0}.office{text-align:center;letter-spacing:.5px;font-size:15px;font-weight:700;color:#000}.reporttitle{text-align:center;font-size:17px;letter-spacing:.3px;margin:12px 0 14px;font-weight:700;color:#000}
+    /* Header matches the official BSEF form: two seals left, ISO badge right. */
+    .reportletter .seals{display:flex;gap:6px;flex-shrink:0}.reportletter .isobadge{width:96px;height:auto;flex-shrink:0}.letterrule.thick{border-top-width:3px!important}.office{font-weight:400!important}
     /* Meta row (2026-09-14 redesign, matches server/reports/templates/
        reportRenderer.js's PDF exactly): "Report Period"/"Quarter" stacked
        on the left, "Generated On" on the right, sharing one row — not the
@@ -52,13 +54,13 @@
        actually show through a hidden ancestor. Confirmed with a real
        headless-Chromium print-to-PDF render, not just reasoned about. */
     @media print{
-      /* Legal / long bond (8.5 x 13 in), matching sendPdf's `size: 'LEGAL'` and sendExcel's
-         `paperSize: 5` in server/reports/templates/reportRenderer.js, so
+      /* long bond (8.5 x 13 in), matching sendPdf's `size: [612, 936]` and sendExcel's
+         `paperSize: 14` in server/reports/templates/reportRenderer.js, so
          the print view, PDF and Excel all use the same page size. The
          print dialog's paper-size picker can still override it per printer. */
-      @page{size:legal;margin:14mm}
+      @page{size:8.5in 13in;margin:14mm}
       #paper{font-size:10pt}
-      /* When a report is longer than one Legal page it continues on the next
+      /* When a report is longer than one long-bond page it continues on the next
          page: the table header repeats on every page, a row is never split
          across pages, and the signature block stays together with the
          document footer, so the footer line can no longer end up alone on
@@ -113,7 +115,7 @@
     // Best-effort print page count. JavaScript cannot ask the browser how
     // many physical pages a print job will produce, so the footer shows an
     // ESTIMATE: the rendered content height (#paper.scrollHeight) divided by
-    // the usable height of one Legal page (page size minus the @media print
+    // the usable height of one long-bond page (page size minus the @media print
     // @page margin), using the same portrait/landscape rule as the print
     // style below. It can drift slightly from the real print output. The
     // downloadable PDF (server/reports/templates/reportRenderer.js)
@@ -189,11 +191,11 @@
       // the Prepared-by signature line, which the PDF doesn't render at all
       // but is kept here since it's a genuinely useful on-screen/print
       // addition, not something being removed for parity's sake.
-      paper.innerHTML=`<div class="reportletter"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="letterrule"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="reportend"><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span id="pageCountFoot">Page 1 of 1</span></div></div>`;
+      paper.innerHTML=`<div class="reportletter"><div class="seals"><img class="seal" src="../../assets/images/rsu-university-seal.png" alt="Romblon State University seal"><img class="seal" src="../../assets/images/rsu-sdpo-logo.png" alt="RSU SDPO seal"></div><div class="university"><small>Republic of the Philippines</small><h2>ROMBLON STATE UNIVERSITY</h2><span class="place">Romblon, Philippines</span></div><img class="isobadge" src="../../assets/images/iso-certification.png" alt="ISO 9001:2015 certification"></div><div class="letterrule thick"></div><div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="letterrule"></div><h3 class="reporttitle">${esc(r.title)}</h3><div class="reportmeta"><div class="meta-left">${r.period?`<div><b>Report Period:</b> ${esc(r.period.range)}</div><div><b>Quarter:</b> ${esc(r.period.quarterLabel)}</div>`:'<div><b>Report Type:</b> Current inventory snapshot</div>'}</div><div class="meta-right"><div><b>Generated On:</b></div><div>${generatedOn}</div></div></div>${r.stats.length?`<div class="summarylabel">Summary</div><div class="summary">${r.stats.map(s=>`<div><b>${esc(s[0])}:</b> ${esc(s[1])}</div>`).join('')}</div>`:''}<table class="reporttable"><thead><tr>${r.heads.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${r.data.length?r.data.map(d=>`<tr>${d.map(v=>`<td>${pill(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${r.heads.length}" style="text-align:center;color:#8aa0b9">No records for this period.</td></tr>`}</tbody></table><div class="reportend"><div class="signatures"><div><span>Prepared by:</span><div class="signature">${generatedBy}</div><div class="sigrole">${generatedByRole}</div></div><div><span>Verified by:</span><div class="signature">Alphee F. Lachica</div><div class="sigrole">Director<br>Sports Development Program Office<br>Romblon State University</div></div></div><div class="docfoot"><span>Document ID: ${docId}</span><span>RSU Sports Development Program Office</span><span id="pageCountFoot">Page 1 of 1</span></div></div>`;
       // Same orientation rule as the PDF/Excel exports: landscape when the table has more than 5 columns.
       let pageStyle=document.getElementById('reportPageStyle');
       if(!pageStyle){pageStyle=document.createElement('style');pageStyle.id='reportPageStyle';document.head.appendChild(pageStyle);}
-      pageStyle.textContent=`@media print{@page{size:legal ${r.heads.length>5?'landscape':'portrait'};margin:14mm}}`;
+      pageStyle.textContent=`@media print{@page{size:${r.heads.length>5?'13in 8.5in':'8.5in 13in'};margin:14mm}}`;
       lastHeadsLength=r.heads.length;
       updatePageCountFooter();
     }
