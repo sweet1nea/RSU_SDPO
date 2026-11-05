@@ -2,10 +2,10 @@
 
 // Regression coverage for report paper size: every report render path — PDF
 // export, the on-screen preview's print stylesheet, and the Excel export's
-// print page setup — agrees on Legal / long bond (8.5x13in).
+// print page setup — agrees on long bond (8.5x13in).
 //
 // This file only covers the PDF and Excel paths, which are mechanically
-// checkable here; the print stylesheet's `@page{size:legal}` in
+// checkable here; the print stylesheet's `@page{size:8.5in 13in}` in
 // reports-analytics.html has no equivalent Node-side check (there's no
 // existing browser/Playwright harness in this suite — see
 // claude/RSU_SDPO_Report_Template_Unification_2026-09-14.md for how that
@@ -20,12 +20,12 @@ jest.mock('../../models', () => require('../fixtures/mockModels')());
 const { Transaction, User, Equipment, TransactionDetail } = require('../../models');
 const ctrl = require('../../controllers/report.controller');
 
-// Legal in PDF points (72pt/in): 612 x 1008.
-const A4_PORTRAIT = [0, 0, 612, 1008];
-const A4_LANDSCAPE = [0, 0, 1008, 612];
-// OOXML ST_PaperSize code for Legal — see ECMA-376 Part 1, §18.3.1.66
+// Long bond in PDF points (72pt/in): 612 x 936.
+const A4_PORTRAIT = [0, 0, 612, 936];
+const A4_LANDSCAPE = [0, 0, 936, 612];
+// OOXML ST_PaperSize code for long bond (Folio) — see ECMA-376 Part 1, §18.3.1.66
 // (pageSetup / paperSize attribute).
-const OOXML_A4_PAPER_SIZE = 5;
+const OOXML_A4_PAPER_SIZE = 14;
 
 function createStreamRes() {
   const chunks = [];
@@ -69,8 +69,8 @@ function extractMediaBox(pdfBuffer) {
 
 beforeEach(() => jest.clearAllMocks());
 
-describe('PDF export — Legal page size', () => {
-  test('a <=5-column report (portrait) renders at Legal portrait — 612x1008pt', async () => {
+describe('PDF export — long-bond page size', () => {
+  test('a <=5-column report (portrait) renders at long-bond portrait — 612x936pt', async () => {
     // "overdue" has 5 columns (Borrower/Equipment/Qty/Due Date/Days
     // Overdue, per the screenshot that prompted this fix) — stays portrait
     // under sendPdf's `heads.length > 5 ? landscape : portrait` rule.
@@ -85,7 +85,7 @@ describe('PDF export — Legal page size', () => {
     expect(extractMediaBox(res.getBuffer())).toEqual(A4_PORTRAIT);
   });
 
-  test('a >5-column report (landscape) renders at Legal landscape — 1008x612pt', async () => {
+  test('a >5-column report (landscape) renders at long-bond landscape — 936x612pt', async () => {
     // "history" (Transaction History Report) has more than 5 columns and
     // takes the landscape branch.
     Transaction.findAll.mockResolvedValue([]);
@@ -99,8 +99,8 @@ describe('PDF export — Legal page size', () => {
   });
 });
 
-describe('Excel export — Legal page setup', () => {
-  test('worksheet.pageSetup.paperSize is the OOXML Legal code (5), orientation matches the PDF rule', async () => {
+describe('Excel export — long-bond page setup', () => {
+  test('worksheet.pageSetup.paperSize is the OOXML Folio code (14), orientation matches the PDF rule', async () => {
     Equipment.findAll.mockResolvedValue([]);
     const req = { query: { format: 'excel', quarter: '3', year: '2026' } };
     const res = createStreamRes();
@@ -116,7 +116,7 @@ describe('Excel export — Legal page setup', () => {
     expect(sheet.pageSetup.orientation).toBe('portrait');
   });
 
-  test('a >5-column report exports with landscape orientation, still Legal paper', async () => {
+  test('a >5-column report exports with landscape orientation, still long-bond paper', async () => {
     Transaction.findAll.mockResolvedValue([]);
     const req = { query: { format: 'excel', quarter: '3', year: '2026' } };
     const res = createStreamRes();
