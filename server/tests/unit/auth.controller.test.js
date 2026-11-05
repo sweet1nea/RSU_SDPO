@@ -433,7 +433,8 @@ describe('auth.controller.js#register (re-registration of an abandoned unverifie
     expect(sendEmail).toHaveBeenCalledWith(
       'abandoned@example.com',
       'RSU SDPO - Verify Your Email',
-      expect.stringContaining('123456')
+      expect.stringContaining('123456'),
+      expect.objectContaining({ heading: 'Email Verification' })
     );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ success: true, data: { email: 'abandoned@example.com' } });

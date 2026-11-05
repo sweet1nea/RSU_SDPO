@@ -56,7 +56,7 @@ describe('recordResubmission', () => {
     await recordResubmission(borrower);
     expect(logStatusChange).toHaveBeenCalledWith(18, 70, ACK, ACK, REUPLOAD_REMARK);
     expect(notifyStaff).toHaveBeenCalledTimes(1);
-    expect(notifyStaff.mock.calls[0][0]).toMatch(/Laurence Dioco re-uploaded documents for Transaction #18/);
+    expect(notifyStaff.mock.calls[0][0]).toMatch(/Laurence Dioco re-uploaded documents for Transaction TN18-2026/);
     expect(notifyStaff.mock.calls[0][2]).toBe('txn-18-reupload-2');
   });
   test('does nothing for a request that was never returned', async () => {

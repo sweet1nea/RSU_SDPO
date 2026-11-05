@@ -1,6 +1,7 @@
 'use strict';
 
 const { Equipment, User, DamageLossRecord, sequelize } = require('../models');
+const { txnCode } = require('../helpers/txnCode');
 const { serialize, loadTransactionOr404, assertStatusIn, transition, codeMatchesItem } = require('./borrow.controller');
 const { STATUS, OUT_WITH_BORROWER } = require('../constants/transactionStatus');
 const { notifyBorrower } = require('../helpers/notify');
@@ -112,8 +113,8 @@ exports.returnTransaction = async (req, res) => {
     await notifyBorrower(
       txn.borrower.user.id,
       anyBad
-        ? `Your returned equipment for Transaction #${txn.id} included ${createdRecords.length} item(s) reported Damaged or Lost. Your account is flagged and a replacement is required before you can borrow again — please visit the SDPO office.`
-        : `Your returned equipment for Transaction #${txn.id} has been received in good condition and the transaction is complete. Thank you!`,
+        ? `Your returned equipment for Transaction ${txnCode(txn)} included ${createdRecords.length} item(s) reported Damaged or Lost. Your account is flagged and a replacement is required before you can borrow again — please visit the SDPO office.`
+        : `Your returned equipment for Transaction ${txnCode(txn)} has been received in good condition and the transaction is complete. Thank you!`,
       'Return',
       `txn-${txn.id}-returned`
     );

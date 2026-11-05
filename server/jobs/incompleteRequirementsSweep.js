@@ -1,6 +1,7 @@
 'use strict';
 
 const { Transaction, Borrower, User } = require('../models');
+const { txnCode } = require('../helpers/txnCode');
 const { Op } = require('sequelize');
 const { notifyBorrower } = require('../helpers/notify');
 const { missingDocuments } = require('../constants/borrowerCategories');
@@ -39,7 +40,7 @@ async function runIncompleteRequirementsSweep() {
         if (missing.length) {
           await notifyBorrower(
             borrower.user.id,
-            `Your borrowing request (Transaction #${txn.id}) is missing: ${missing.join(', ')}. Please upload it as soon as possible so your request isn't delayed.`,
+            `Your borrowing request (Transaction ${txnCode(txn)}) is missing: ${missing.join(', ')}. Please upload it as soon as possible so your request isn't delayed.`,
             'Incomplete Requirements',
             `txn-${txn.id}-incomplete-requirements`
           );

@@ -1,6 +1,7 @@
 'use strict';
 
 const { Transaction, TransactionLog } = require('../models');
+const { txnCode } = require('./txnCode');
 const { STATUS, AWAITING_REVIEW } = require('../constants/transactionStatus');
 const { logStatusChange } = require('./transactionLog');
 const { notifyStaff } = require('./notify');
@@ -45,7 +46,7 @@ async function recordResubmission(borrower) {
       await logStatusChange(t.id, borrower.userId, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, REUPLOAD_REMARK);
       // eslint-disable-next-line no-await-in-loop
       await notifyStaff(
-        `${name} re-uploaded documents for Transaction #${t.id}. The request is ready for review again.`,
+        `${name} re-uploaded documents for Transaction ${txnCode(t)}. The request is ready for review again.`,
         'Documents Re-uploaded',
         `txn-${t.id}-reupload-${correction.id}`
       );
