@@ -17,6 +17,7 @@ const { notifyBorrower, notifyRoles } = require('../helpers/notify');
 const { logStatusChange } = require('../helpers/transactionLog');
 const { lastCorrectionLog } = require('../helpers/correction');
 const { formatDate, formatTime, parsePhtDateTime, toPhtWallClock, DAY_MS } = require('../helpers/dateHelper');
+const { txnCode } = require('../helpers/txnCode');
 const { formatEquipmentCode } = require('../helpers/equipmentCode');
 const { missingDocuments } = require('../constants/borrowerCategories');
 const { STATUS, AWAITING_REVIEW } = require('../constants/transactionStatus');
@@ -88,7 +89,8 @@ async function getLateReturnBlock(borrowerId) {
     count: overdue.length,
     graceDays: LATE_RETURN_GRACE_DAYS,
     daysOverdue,
-    oldestTransactionId: oldest.id
+    oldestTransactionId: oldest.id,
+    oldestTransactionCode: txnCode(oldest)
   };
 }
 
@@ -127,7 +129,7 @@ async function getBorrowingRestrictions(borrower, user) {
   if (lateBlock) {
     restrictions.push({
       code: 'LATE_RETURN',
-      message: `You have equipment overdue by ${lateBlock.daysOverdue} day(s) (Transaction #${lateBlock.oldestTransactionId}). New borrowing requests are blocked until all overdue equipment is returned.`,
+      message: `You have equipment overdue by ${lateBlock.daysOverdue} day(s) (Transaction ${lateBlock.oldestTransactionCode}). New borrowing requests are blocked until all overdue equipment is returned.`,
       ...lateBlock
     });
   }
@@ -177,10 +179,6 @@ async function transition(txn, fromStatuses, toStatus, fields, t) {
   return txn;
 }
 
-function txnCode(t) {
-  const year = toPhtWallClock(t.requestDatetime || t.createdAt).getUTCFullYear();
-  return `TN${t.id}-${year}`;
-}
 
 // Most recent audit-trail entry reaching `newStatus` — shows *why* a request
 // was rejected or when it was cancelled without a separate column.
@@ -562,7 +560,7 @@ exports.createSelfRequest = async (req, res) => {
   await logStatusChange(created.id, req.user.id, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, 'Request submitted by borrower');
   await notifyBorrower(
     req.user.id,
-    `Your borrow request (Transaction #${created.id}) was submitted and is awaiting SDPO review and approval.`,
+    `Your borrow request (Transaction ${txnCode(created)}) was submitted and is awaiting SDPO review and approval.`,
     'Request Submitted',
     `txn-${created.id}-submitted`
   );
@@ -572,7 +570,7 @@ exports.createSelfRequest = async (req, res) => {
   // with the Director notified later once the request is forwarded.
   await notifyRoles(
     ['Admin', 'Director', 'Staff'],
-    `New borrow request from ${[borrower.firstName, borrower.lastName].filter(Boolean).join(' ')} (Transaction #${created.id}) — submitted documents need review.`,
+    `New borrow request from ${[borrower.firstName, borrower.lastName].filter(Boolean).join(' ')} (Transaction ${txnCode(created)}) — submitted documents need review.`,
     'New Request',
     `txn-${created.id}-new-request`
   );
@@ -684,10 +682,10 @@ exports.review = async (req, res) => {
   if (txn.borrower && txn.borrower.user) {
     const message =
       action === 'accept'
-        ? `Your borrow request (Transaction #${txn.id}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`
+        ? `Your borrow request (Transaction ${txnCode(txn)}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`
         : action === 'reject'
-          ? `Your borrow request (Transaction #${txn.id}) was rejected during review.${remarks ? ' Reason: ' + remarks : ''}`
-          : `Your borrow request (Transaction #${txn.id}) needs correction before it can proceed.${remarks ? ' ' + remarks : ''}`;
+          ? `Your borrow request (Transaction ${txnCode(txn)}) was rejected during review.${remarks ? ' Reason: ' + remarks : ''}`
+          : `Your borrow request (Transaction ${txnCode(txn)}) needs correction before it can proceed.${remarks ? ' ' + remarks : ''}`;
     const key =
       action === 'accept'
         ? `txn-${txn.id}-approved`
@@ -715,7 +713,7 @@ exports.approve = async (req, res) => {
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
-      `Your borrow request (Transaction #${txn.id}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`,
+      `Your borrow request (Transaction ${txnCode(txn)}) has been approved. Confirm receipt from your account when you pick up the equipment at the SDPO office.`,
       'Approval',
       `txn-${txn.id}-approved`
     );
@@ -737,7 +735,7 @@ exports.reject = async (req, res) => {
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
-      `Your borrow request (Transaction #${txn.id}) was rejected.${remarks ? ' Reason: ' + remarks : ''}`,
+      `Your borrow request (Transaction ${txnCode(txn)}) was rejected.${remarks ? ' Reason: ' + remarks : ''}`,
       'Rejection',
       `txn-${txn.id}-rejected`
     );
@@ -799,7 +797,7 @@ exports.release = async (req, res) => {
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
       txn.borrower.user.id,
-      `Equipment for your request (Transaction #${txn.id}) has been released to you. Please return it by ${formatDate(txn.expectedReturnDatetime)} ${formatTime(txn.expectedReturnDatetime)}.`,
+      `Equipment for your request (Transaction ${txnCode(txn)}) has been released to you. Please return it by ${formatDate(txn.expectedReturnDatetime)} ${formatTime(txn.expectedReturnDatetime)}.`,
       'Release',
       `txn-${txn.id}-released`
     );
@@ -815,7 +813,7 @@ exports.complete = async (req, res) => {
   await transition(txn, [STATUS.RESOLVED], STATUS.COMPLETED);
   await logStatusChange(txn.id, req.user.id, STATUS.RESOLVED, STATUS.COMPLETED, 'Transaction closed after replacement resolution');
   if (txn.borrower && txn.borrower.user) {
-    await notifyBorrower(txn.borrower.user.id, `Transaction #${txn.id} has been marked Completed.`, 'Completed', `txn-${txn.id}-completed`);
+    await notifyBorrower(txn.borrower.user.id, `Transaction ${txnCode(txn)} has been marked Completed.`, 'Completed', `txn-${txn.id}-completed`);
   }
   res.json({ success: true, data: serialize(await loadTransactionOr404(txn.id)) });
 };

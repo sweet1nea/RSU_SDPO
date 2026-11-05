@@ -46,7 +46,7 @@ describe('jobs/dueDateReminderSweep.js', () => {
 
     await runDueDateReminderSweep();
 
-    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction #42'), 'Due Date Reminder', 'txn-42-due-reminder');
+    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction TN42-2026'), 'Due Date Reminder', 'txn-42-due-reminder');
     expect(txn.dueReminderSentDatetime).toBeInstanceOf(Date);
     expect(txn.save).toHaveBeenCalledTimes(1);
     expect(txn.transactionStatus).toBe('Released');

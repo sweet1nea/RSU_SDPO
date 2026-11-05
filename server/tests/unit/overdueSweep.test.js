@@ -61,8 +61,8 @@ describe('jobs/overdueSweep.js', () => {
     expect(TransactionLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ transactionId: 42, oldStatus: 'Released', newStatus: 'Overdue' })
     );
-    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction #42'), 'Overdue', 'txn-42-overdue');
-    expect(notifyStaff).toHaveBeenCalledWith(expect.stringContaining('Transaction #42'), 'Overdue', 'txn-42-overdue');
+    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction TN42-2026'), 'Overdue', 'txn-42-overdue');
+    expect(notifyStaff).toHaveBeenCalledWith(expect.stringContaining('Transaction TN42-2026'), 'Overdue', 'txn-42-overdue');
   });
 
   test('queries only Released transactions whose expected return date has already passed', async () => {
@@ -91,8 +91,8 @@ describe('jobs/overdueSweep.js', () => {
     // The good row right after it still went through, instead of the whole
     // batch being abandoned.
     expect(flippedIds()).toContain(2);
-    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction #2'), 'Overdue', 'txn-2-overdue');
-    expect(notifyBorrower).not.toHaveBeenCalledWith(5, expect.stringContaining('Transaction #1'), 'Overdue', expect.anything());
+    expect(notifyBorrower).toHaveBeenCalledWith(5, expect.stringContaining('Transaction TN2-2026'), 'Overdue', 'txn-2-overdue');
+    expect(notifyBorrower).not.toHaveBeenCalledWith(5, expect.stringContaining('Transaction TN1-2026'), 'Overdue', expect.anything());
   });
 
   test('a notifyStaff failure for one transaction does not stop the next transaction from being processed', async () => {
@@ -115,7 +115,7 @@ describe('jobs/overdueSweep.js', () => {
 
     expect(notifyBorrower).not.toHaveBeenCalled();
     expect(flippedIds()).toEqual([7]);
-    expect(notifyStaff).toHaveBeenCalledWith(expect.stringContaining('Transaction #7'), 'Overdue', 'txn-7-overdue');
+    expect(notifyStaff).toHaveBeenCalledWith(expect.stringContaining('Transaction TN7-2026'), 'Overdue', 'txn-7-overdue');
   });
 
   test('a transaction returned between the query and the update is skipped (no duplicate overdue notice)', async () => {

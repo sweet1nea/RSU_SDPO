@@ -1,6 +1,7 @@
 'use strict';
 
 const { Transaction, Borrower, User } = require('../models');
+const { txnCode } = require('../helpers/txnCode');
 const { Op } = require('sequelize');
 const { notifyBorrower, notifyStaff } = require('../helpers/notify');
 const { logStatusChange } = require('../helpers/transactionLog');
@@ -43,12 +44,12 @@ async function runOverdueSweep() {
       if (txn.borrower && txn.borrower.user) {
         await notifyBorrower(
           txn.borrower.user.id,
-          `Your borrowed equipment (Transaction #${txn.id}) is now overdue. Please return it to the SDPO office as soon as possible.`,
+          `Your borrowed equipment (Transaction ${txnCode(txn)}) is now overdue. Please return it to the SDPO office as soon as possible.`,
           'Overdue',
           `txn-${txn.id}-overdue`
         );
       }
-      await notifyStaff(`Transaction #${txn.id} is now overdue.`, 'Overdue', `txn-${txn.id}-overdue`);
+      await notifyStaff(`Transaction ${txnCode(txn)} is now overdue.`, 'Overdue', `txn-${txn.id}-overdue`);
       flaggedCount += 1;
     } catch (err) {
       console.error(`Overdue sweep: failed to process transaction #${txn.id}:`, err.message);

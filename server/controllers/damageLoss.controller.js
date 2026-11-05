@@ -7,6 +7,7 @@ const { logStatusChange } = require('../helpers/transactionLog');
 
 const { formatDate: fmtDate } = require('../helpers/dateHelper');
 const { txnCode } = require('./borrow.controller');
+const { txnCodeById } = require('../helpers/txnCode');
 
 const INCLUDE = [
   { model: Transaction, as: 'transaction' },
@@ -167,7 +168,7 @@ exports.resolve = async (req, res) => {
       await borrower.user.save();
       await notifyBorrower(
         borrower.user.id,
-        `Your replacement for Transaction #${record.transactionId} has been verified and the incident is resolved. Your account restriction has been lifted.`,
+        `Your replacement for Transaction ${await txnCodeById(record.transactionId)} has been verified and the incident is resolved. Your account restriction has been lifted.`,
         'Account Restored',
         `borrower-${borrower.id}-restored-record-${record.id}`
       );
@@ -192,7 +193,7 @@ exports.flag = async (req, res) => {
 
   await notifyBorrower(
     user.id,
-    `Your account has been flagged due to a ${record.incidentType.toLowerCase()} item report on Transaction #${record.transactionId}. You can still sign in, but new borrowing requests are blocked until the SDPO lifts the flag. Please visit the SDPO office to resolve this.`,
+    `Your account has been flagged due to a ${record.incidentType.toLowerCase()} item report on Transaction ${await txnCodeById(record.transactionId)}. You can still sign in, but new borrowing requests are blocked until the SDPO lifts the flag. Please visit the SDPO office to resolve this.`,
     'Account Restricted'
   );
 
@@ -212,7 +213,7 @@ exports.unflag = async (req, res) => {
 
   await notifyBorrower(
     user.id,
-    `Your account restriction related to Transaction #${record.transactionId} has been lifted. You may borrow equipment again.`,
+    `Your account restriction related to Transaction ${await txnCodeById(record.transactionId)} has been lifted. You may borrow equipment again.`,
     'Account Restored'
   );
 

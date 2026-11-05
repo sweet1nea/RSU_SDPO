@@ -1,6 +1,7 @@
 'use strict';
 
 const { Transaction, Borrower, User } = require('../models');
+const { txnCode } = require('../helpers/txnCode');
 const { Op } = require('sequelize');
 const { notifyBorrower } = require('../helpers/notify');
 const { formatDateTime } = require('../helpers/dateHelper');
@@ -39,7 +40,7 @@ async function runDueDateReminderSweep() {
           : 'soon';
         await notifyBorrower(
           txn.borrower.user.id,
-          `Reminder: your borrowed equipment (Transaction #${txn.id}) is due back on ${dueText}. Please return it to the SDPO office on time.`,
+          `Reminder: your borrowed equipment (Transaction ${txnCode(txn)}) is due back on ${dueText}. Please return it to the SDPO office on time.`,
           'Due Date Reminder',
           `txn-${txn.id}-due-reminder`
         );
