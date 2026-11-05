@@ -116,6 +116,7 @@
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/app-shell.js"></script>
   <script src="../../js/shared/confirm-dialog.js"></script>
+  <script src="../../js/shared/bsef-print.js"></script>
   <script>
     // Only the request/approval phase lives here — once equipment is Released
     // it moves to My Borrowings, and closed-out transactions move to History.
@@ -144,6 +145,7 @@
     function mapTransaction(t){
       return {
         dbId:t.dbId,
+        raw:t,
         id:t.id,
         date:t.date,
         status:t.status,
@@ -231,9 +233,10 @@
       <h3>Equipment requested</h3>
       <ul class="detail-items">${r.items.map(([n,q])=>`<li><span>${esc(n)}</span><b>${q} ${q===1?'unit':'units'}</b></li>`).join('')}</ul>
       ${r.needsCorrection?`<div class="correction-box"><b>SDPO returned this request for correction</b>${r.correctionNote?esc(r.correctionNote):'Review your submitted documents and re-upload below, then SDPO will review your request again.'}</div>`:`<div class="modal-note ${r.reason?'reject':''}">${r.reason?'Reason for rejection: '+esc(r.reason):esc(r.note||'')}</div>`}`;
-      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${r.needsCorrection?'<button type="button" class="btn btn-primary" id="modalReuploadBtn">Re-upload Documents</button>':''}${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}`;
+      detailModalFoot.innerHTML=`<button type="button" class="btn btn-secondary" id="modalPrintBtn">Print BSEF</button><button type="button" class="btn btn-secondary" id="modalCloseBtn">Close</button>${r.needsCorrection?'<button type="button" class="btn btn-primary" id="modalReuploadBtn">Re-upload Documents</button>':''}${['Pending','Acknowledged'].includes(r.status)?'<button type="button" class="btn btn-outline-danger" id="modalCancelBtn">Cancel Request</button>':''}`;
       detailModalOverlay.hidden=false;
       $('modalCloseBtn').addEventListener('click',closeDetails);
+      $('modalPrintBtn').addEventListener('click',()=>openBsefPrint(r.raw));
       const cancelBtn=$('modalCancelBtn');
       if(cancelBtn)cancelBtn.addEventListener('click',()=>cancelRequest(r.id));
       const reuploadBtn=$('modalReuploadBtn');

@@ -215,6 +215,7 @@
   <script src="../../js/shared/api.js"></script>
   <script src="../../js/shared/equipment-ui.js"></script>
   <script src="../../js/shared/confirm-dialog.js"></script>
+  <script src="../../js/shared/bsef-print.js"></script>
   <script src="../../js/vendor/jsQR.js"></script>
   <script src="../../js/shared/qr-decode.js"></script>
   <script src="../../js/vendor/qrious.min.js"></script>
@@ -474,7 +475,7 @@
       const ts=t.timestamps||{};const at=v=>v?' · '+esc(formatPHDateTime(v)):'';
       return `<div class="timeline">${timelineEvent('Request Submitted',esc(t.date)+' · '+esc(t.time))}${timelineEvent('Approved',t.status==='Rejected'?'Rejected':approved?'Approved by '+esc(t.approve)+at(ts.approved):'Awaiting approval',approved)}${timelineEvent('Released',releasedOnward?'Equipment released'+at(ts.released):'',releasedOnward)}${timelineEvent('Returned',returnedOnward?'Equipment returned'+at(ts.returned):'',returnedOnward)}${timelineEvent('Completed',t.status==='Completed'?'Transaction closed':'',t.status==='Completed')}</div>`;
     }
-    function openDrawer(dbId){current=txns.find(t=>t.dbId===dbId);if(!current)return;const t=current;document.getElementById('drawerBadges').innerHTML=`<span class="badge ${cls(t.status)}">${esc(t.id)}</span> <span class="badge ${cls(t.status)}">${esc(t.status)}</span> <span class="badge type">${esc(t.type)}</span>`;document.getElementById('drawerName').textContent=t.name;document.getElementById('drawerCollege').textContent=`${t.college} · ${t.bsf}`;document.getElementById('drawerActions').innerHTML=drawerActionsHtml(t);
+    function openDrawer(dbId){current=txns.find(t=>t.dbId===dbId);if(!current)return;const t=current;document.getElementById('drawerBadges').innerHTML=`<span class="badge ${cls(t.status)}">${esc(t.id)}</span> <span class="badge ${cls(t.status)}">${esc(t.status)}</span> <span class="badge type">${esc(t.type)}</span>`;document.getElementById('drawerName').textContent=t.name;document.getElementById('drawerCollege').textContent=`${t.college} · ${t.bsf}`;document.getElementById('drawerActions').innerHTML=drawerActionsHtml(t)+'<button class="btn" type="button" onclick="openBsefPrint(current)">Print BSEF</button>';
       document.getElementById('overview').innerHTML=section('Borrower Information',`<div class="info-grid"><div class="info"><label>Transaction No.</label><div>${esc(t.id)}</div></div><div class="info"><label>BSF Number</label><div>${esc(t.bsf)}</div></div><div class="info"><label>Borrower Name</label><div>${esc(t.name)}</div></div><div class="info"><label>Borrower Type</label><div>${esc(t.type)}</div></div><div class="info"><label>College / Unit</label><div>${esc(t.college)}</div></div><div class="info"><label>Email</label><div>${esc(t.email)}</div></div></div>`)+section('Request Details',`<div class="info-grid"><div class="info"><label>Request Date (PHT)</label><div>${esc(t.date)} ${esc(t.time)}</div></div><div class="info"><label>Expected Return (PHT)</label><div>${esc(t.due)} ${esc(t.dueTime||'')}</div></div><div class="info" style="grid-column:1/-1"><label>Purpose</label><div>${esc(t.purpose)}</div></div></div>`)+section(`Equipment Requested · ${t.items.length} items`,equipmentDetails(t))+documentsSection(t);
       loadDocumentStatus(t);
       let workflowBody;
