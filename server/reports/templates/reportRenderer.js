@@ -39,6 +39,7 @@ const PAGE = { size: [612, 936], margin: 40, footerHeight: 24 };
 const FONT = { body: 9, table: 8.5, small: 8, title: 13 };
 const ROW_PADDING = 4;
 const LOGO_SIZE = 50;
+const SEAL_SIZE = 52.5;
 
 function slugify(title) {
   const slug = String(title || 'report')
@@ -118,13 +119,14 @@ function sendPdf(res, reportData, filenameBase) {
   // SDPO logo on the left, centered text, ISO badge on the right.
   const ISO_W = 82;
   [
-    [SEAL_EXISTS, SEAL_PATH, startX, LOGO_SIZE],
-    [LOGO_EXISTS, LOGO_PATH, startX + LOGO_SIZE + 6, LOGO_SIZE],
-    [ISO_EXISTS, ISO_PATH, endX - ISO_W, ISO_W]
-  ].forEach(([exists, file, x, size]) => {
+    // The seal artwork has transparent padding, so it is drawn ~5% larger to look the same size as the SDPO logo.
+    [SEAL_EXISTS, SEAL_PATH, startX - 1, SEAL_SIZE, headerTop - 1],
+    [LOGO_EXISTS, LOGO_PATH, startX + LOGO_SIZE + 6, LOGO_SIZE, headerTop],
+    [ISO_EXISTS, ISO_PATH, endX - ISO_W, ISO_W, headerTop]
+  ].forEach(([exists, file, x, size, top]) => {
     if (!exists) return;
     try {
-      doc.image(file, x, headerTop, { fit: [size, LOGO_SIZE], align: 'center', valign: 'center' });
+      doc.image(file, x, top, { fit: [size, size === ISO_W ? LOGO_SIZE : size], align: 'center', valign: 'center' });
     } catch (err) {
       console.error('reportRenderer.sendPdf: failed to draw letterhead image:', err);
     }
@@ -300,7 +302,7 @@ async function sendExcel(res, reportData, filenameBase) {
   // cell values.
   const EMU = 9525; // EMUs per pixel
   const images = [
-    [SEAL_EXISTS, SEAL_PATH, { nativeCol: 0, nativeColOff: 6 * EMU }, 52, 52],
+    [SEAL_EXISTS, SEAL_PATH, { nativeCol: 0, nativeColOff: 5 * EMU }, 55, 55],
     [LOGO_EXISTS, LOGO_PATH, { nativeCol: 0, nativeColOff: 64 * EMU }, 52, 52],
     [ISO_EXISTS, ISO_PATH, { col: Math.max(colCount - 1.2, 1) }, 100, 37]
   ];

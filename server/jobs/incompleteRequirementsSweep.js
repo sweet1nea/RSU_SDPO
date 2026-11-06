@@ -36,7 +36,7 @@ async function runIncompleteRequirementsSweep() {
 
       if (borrower && borrower.user) {
         // Same per-borrower-type rules the request wizard and staff review use.
-        const missing = missingDocuments(borrower);
+        const missing = missingDocuments(borrower, txn);
         if (missing.length) {
           await notifyBorrower(
             borrower.user.id,

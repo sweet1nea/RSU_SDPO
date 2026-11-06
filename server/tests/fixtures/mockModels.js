@@ -7,7 +7,7 @@
 // endpoints never call, so requiring the mocked module never throws.
 module.exports = function buildMockModels() {
   return {
-    Transaction: { findAll: jest.fn() },
+    Transaction: { findAll: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     TransactionDetail: { findAll: jest.fn() },
     Equipment: { findAll: jest.fn() },
     Category: { findAll: jest.fn() },

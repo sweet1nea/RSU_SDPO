@@ -32,7 +32,10 @@ function lastCorrectionLog(t) {
 // requests still waiting on a correction, records that they responded and
 // tells staff the request is ready for review again. Never throws — a failure
 // here must not fail the upload itself.
-async function recordResubmission(borrower) {
+// `changed` says which slots were just replaced ({ validId, authorizationDocument });
+// those files become the documents of each request being corrected, so the
+// correction lands on that request only. Omitted = both slots.
+async function recordResubmission(borrower, changed = { validId: true, authorizationDocument: true }) {
   try {
     const txns = await Transaction.findAll({
       where: { borrowerId: borrower.id, transactionStatus: AWAITING_REVIEW },
@@ -42,6 +45,11 @@ async function recordResubmission(borrower) {
     for (const t of txns) {
       const correction = lastCorrectionLog(t);
       if (!correction) continue;
+      // eslint-disable-next-line no-await-in-loop
+      if (changed.validId) t.validIdPath = borrower.validIdPath;
+      if (changed.authorizationDocument) t.authorizationDocumentPath = borrower.authorizationDocumentPath;
+      // eslint-disable-next-line no-await-in-loop
+      await t.save();
       // eslint-disable-next-line no-await-in-loop
       await logStatusChange(t.id, borrower.userId, STATUS.ACKNOWLEDGED, STATUS.ACKNOWLEDGED, REUPLOAD_REMARK);
       // eslint-disable-next-line no-await-in-loop

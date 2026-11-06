@@ -385,6 +385,8 @@ describe('review() — single approval step (2026-10-02)', () => {
     return stubFindByPkResult({
       transactionStatus: 'Acknowledged',
       borrower: { ...READY_BORROWER, user: { id: 40 } },
+      validIdPath: READY_BORROWER.validIdPath,
+      authorizationDocumentPath: READY_BORROWER.authorizationDocumentPath,
       details: [{ item: { id: 301, equipmentId: 1, availabilityStatus: 'Reserved', itemCode: 'EQ-001-001', equipment: { equipmentName: 'Cones' } } }],
       ...overrides
     });
@@ -425,7 +427,7 @@ describe('review() — single approval step (2026-10-02)', () => {
   });
 
   test('accept is refused when required documents are missing', async () => {
-    const txn = pendingTxn({ id: 18, borrower: { ...READY_BORROWER, authorizationDocumentPath: null, user: { id: 40 } } });
+    const txn = pendingTxn({ id: 18, authorizationDocumentPath: null, borrower: { ...READY_BORROWER, authorizationDocumentPath: null, user: { id: 40 } } });
     Transaction.findByPk.mockResolvedValueOnce(txn);
     await expect(ctrl.review({ params: { id: 18 }, user: { id: 3 }, body: { action: 'accept' } }, mockRes())).rejects.toMatchObject({
       statusCode: 409,

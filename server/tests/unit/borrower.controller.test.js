@@ -14,6 +14,7 @@
 
 jest.mock('../../models', () => ({
   Borrower: { findAll: jest.fn(), findOne: jest.fn(), findByPk: jest.fn(), create: jest.fn() },
+  Transaction: { count: jest.fn().mockResolvedValue(0), findByPk: jest.fn().mockResolvedValue(null) },
   User: { findOne: jest.fn(), create: jest.fn() },
   sequelize: { transaction: jest.fn((cb) => cb({})) }
 }));
@@ -336,6 +337,19 @@ describe('POST /api/borrowers/me/documents (uploadDocuments)', () => {
       expect(client.storage.from().remove).not.toHaveBeenCalled();
     });
 
+    test('keeps the old file in storage while an earlier request still uses it', async () => {
+      const { Transaction } = require('../../models');
+      Transaction.count.mockResolvedValueOnce(1);
+      const borrower = { id: 1, validIdPath: 'valid_ids/old.jpg', authorizationDocumentPath: null, save: jest.fn().mockResolvedValue(), reload: jest.fn().mockResolvedValue() };
+      Borrower.findOne.mockResolvedValue(borrower);
+      const client = makeStorageClient();
+      getClient.mockReturnValue(client);
+
+      await ctrl.uploadDocuments({ user: { id: 9 }, files: { validId: [makeFile('new.jpg')] } }, mockRes());
+
+      expect(client.storage.from().remove).not.toHaveBeenCalled();
+    });
+
     test('leaves the OTHER field\'s existing document alone when only one field is re-uploaded', async () => {
       const borrower = {
         id: 1,
@@ -503,6 +517,19 @@ describe('GET /api/borrowers/:id/documents/:type (downloadDocument)', () => {
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Document file is missing in storage' });
+  });
+
+  test('with a transactionId, serves that request\'s own file rather than the borrower\'s latest', async () => {
+    const { Transaction } = require('../../models');
+    const fakeBlob = { type: 'application/pdf', arrayBuffer: jest.fn().mockResolvedValue(Buffer.from('x').buffer) };
+    Borrower.findByPk.mockResolvedValue({ id: 1, authorizationDocumentPath: 'authorization_documents/newest.jpg' });
+    Transaction.findByPk.mockResolvedValueOnce({ id: 57, borrowerId: 1, authorizationDocumentPath: 'authorization_documents/first.pdf' });
+    const client = makeStorageClient({ downloadResult: fakeBlob });
+    getClient.mockReturnValue(client);
+
+    await ctrl.downloadDocument({ params: { id: 1, type: 'authorization-document' }, query: { transactionId: '57' } }, mockRes());
+
+    expect(client.storage.from().download).toHaveBeenCalledWith('authorization_documents/first.pdf');
   });
 
   test('streams the file back with its content type on success', async () => {

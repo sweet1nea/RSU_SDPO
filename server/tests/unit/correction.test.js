@@ -24,7 +24,7 @@ const log = (id, minute, remarks) => ({
   changeDatetime: new Date(2026, 9, 20, 10, minute),
   remarks
 });
-const txn = (logs, status = ACK) => ({ id: 18, transactionStatus: status, logs });
+const txn = (logs, status = ACK) => ({ id: 18, transactionStatus: status, logs, save: jest.fn().mockResolvedValue() });
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -49,7 +49,16 @@ describe('lastCorrectionLog', () => {
 });
 
 describe('recordResubmission', () => {
-  const borrower = { id: 7, userId: 70, firstName: 'Laurence', lastName: 'Dioco' };
+  const borrower = { id: 7, userId: 70, firstName: 'Laurence', lastName: 'Dioco', validIdPath: 'valid_ids/new.jpg', authorizationDocumentPath: 'authorization_documents/new.pdf' };
+
+  test('the new file becomes that request\'s own document; only the replaced slot changes', async () => {
+    const t = { ...txn([log(1, 0, 's'), log(2, 5, 'Incorrect Document.')]), validIdPath: 'valid_ids/old.jpg', authorizationDocumentPath: 'authorization_documents/old.pdf', save: jest.fn().mockResolvedValue() };
+    Transaction.findAll.mockResolvedValue([t]);
+    await recordResubmission(borrower, { validId: false, authorizationDocument: true });
+    expect(t.validIdPath).toBe('valid_ids/old.jpg');
+    expect(t.authorizationDocumentPath).toBe('authorization_documents/new.pdf');
+    expect(t.save).toHaveBeenCalled();
+  });
 
   test('logs the re-upload and notifies staff for a request waiting on correction', async () => {
     Transaction.findAll.mockResolvedValue([txn([log(1, 0, 's'), log(2, 5, 'Incorrect Document.')])]);

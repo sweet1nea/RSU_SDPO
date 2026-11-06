@@ -10,22 +10,24 @@
   *{box-sizing:border-box}
   body{margin:0;background:#e5e7eb;font-family:"Times New Roman",Times,serif;color:#000;font-size:10pt}
   .bar{position:sticky;top:0;z-index:5;background:#0f172a;color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;font-family:Arial,sans-serif;font-size:13px}
-  .bar button{background:#009966;color:#fff;border:0;border-radius:6px;padding:7px 16px;font-weight:700;cursor:pointer}
+  .bar button{background:#009966;color:#fff;border:0;border-radius:6px;padding:7px 16px;font-weight:700;cursor:pointer}.bar button.back{background:transparent;border:1px solid #64748b;color:#fff}.bar span{flex:1;min-width:0;line-height:1.35}
   .page{width:8.5in;height:13in;margin:14px auto;background:#fff;box-shadow:0 2px 8px #0003;position:relative;overflow:hidden;font-size:10pt}
   .head{position:relative;height:1.05in;margin-top:.4in}
-  .head .seal1{position:absolute;left:.9in;top:0;width:.78in;height:.78in;object-fit:contain}
-  .head .seal2{position:absolute;left:1.72in;top:.02in;width:.74in;height:.74in;object-fit:contain}
+  /* Both logos are the same visual size: the seal artwork has a little transparent padding, so it is drawn ~5% larger. */
+  .head .seal1{position:absolute;left:.88in;top:-.01in;width:.84in;height:.84in;object-fit:contain}
+  .head .seal2{position:absolute;left:1.8in;top:.02in;width:.8in;height:.8in;object-fit:contain}
   .head .iso{position:absolute;right:.95in;top:.04in;width:1.15in;height:auto}
-  .head .txt{position:absolute;left:0;right:0;top:.1in;text-align:center;font-size:9pt;line-height:1.25}
-  .head .txt b{font-size:9.5pt}
+  .head .txt{position:absolute;left:0;right:0;top:.1in;text-align:center;font:10pt/1.35 Arial,Helvetica,sans-serif}
+  .head .txt b{display:block;font-size:14pt;line-height:1.3}
   .rule1{border-top:2.5px solid #000;margin-top:.02in}.rule2{border-top:1px solid #000;margin-top:2px}
-  .office{text-align:center;font-size:10.5pt;margin:2px 0 .1in;letter-spacing:.2px}
+  .office{text-align:center;font:11pt Arial,Helvetica,sans-serif;margin:3px 0 .1in}
   .rule3{border-top:1.5px solid #000}
   .body{padding:0 1in}
-  h3{text-align:center;margin:.1in 0 .05in;font-size:10pt;font-weight:700}
-  .fields{display:grid;grid-template-columns:1fr 1fr;column-gap:.4in;row-gap:3px;font-size:8.5pt;font-family:Arial,Helvetica,sans-serif}
-  .f{display:flex;align-items:flex-end;gap:3px;min-height:15px}.f .u{flex:1;border-bottom:1px solid #000;padding:0 3px;min-height:12px;font-size:9pt}
-  .f.r{padding-left:.5in}
+  h3{text-align:center;margin:.12in 0 .08in;font:700 11pt Arial,Helvetica,sans-serif;letter-spacing:.3px}
+  .fields{display:grid;grid-template-columns:1.35fr 1fr;column-gap:.3in;row-gap:5px;font-size:8.5pt;font-family:Arial,Helvetica,sans-serif}
+  /* label + underlined value; a long value (e.g. a full college name) wraps inside the underline instead of pushing the label out of line */
+  .f{display:flex;align-items:flex-end;gap:4px;min-height:15px}.f>*:first-child{flex-shrink:0}.f .u{flex:1;border-bottom:1px solid #000;padding:0 3px;min-height:12px;font-size:9pt;line-height:1.25}
+  .f.r{padding-left:0}
   .lbl{font:700 8pt Arial,Helvetica,sans-serif;margin:.12in 0 3px}
   table.eq{width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt}
   table.eq th{border:1px solid #000;padding:5px 4px;font-weight:700;text-align:center;line-height:1.5}
@@ -52,10 +54,18 @@
 </style>
 </head>
 <body>
-<div class="bar"><button onclick="window.print()">Print</button><span>Print preview of the Borrowing Sports Equipment Form (SDPO-00-001). Choose Long (8.5 x 13 in) paper, margins None.</span></div>
+<div class="bar"><button class="back" id="backBtn" type="button">&larr; Back</button><button onclick="window.print()">Print</button><span>Print preview of the Borrowing Sports Equipment Form (SDPO-00-001). Choose Long (8.5 x 13 in) paper, margins None.</span></div>
 <div class="page" id="page"></div>
 <script>
 (function(){
+  // Back: close the tab if the app opened it, else go to the previous page, else to the page this role came from.
+  document.getElementById('backBtn').addEventListener('click',function(){
+    var role='';try{role=(JSON.parse(localStorage.getItem('rsuSdpoUser')||'{}').userRole)||''}catch(e){}
+    var home=role==='Borrower'?'../user/my-requests.html':'../admin/transaction-management.html';
+    if(window.opener){window.close();setTimeout(function(){location.href=home},150);return}
+    if(history.length>1){history.back();return}
+    location.href=home;
+  });
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var t=null;try{t=JSON.parse(localStorage.getItem('rsuSdpoBsefPrint')||'null')}catch(e){}
   var page=document.getElementById('page');
@@ -68,25 +78,25 @@
   var blank='<span class="u"></span>';
   var due=esc(t.due||'')+(t.dueTime?' '+esc(t.dueTime):'');
   page.innerHTML=
-  '<div class="head"><img class="seal1" src="../../assets/images/rsu-university-seal.png" alt=""><img class="seal2" src="../../assets/images/rsu-sdpo-logo.png" alt=""><div class="txt">Republic of the Philippines<br><b>ROMBLON STATE UNIVERSITY</b><br>Romblon, Philippines</div><img class="iso" src="../../assets/images/iso-certification.png" alt=""></div>'+
+  '<div class="head"><img class="seal1" src="../../assets/images/rsu-university-seal.png" alt=""><img class="seal2" src="../../assets/images/rsu-sdpo-logo.png" alt=""><div class="txt">Republic of the Philippines<br><b>ROMBLON STATE UNIVERSITY</b>Romblon, Philippines</div><img class="iso" src="../../assets/images/iso-certification.png" alt=""></div>'+
   '<div class="rule1"></div><div class="rule2"></div>'+
   '<div class="office">SPORTS DEVELOPMENT PROGRAM OFFICE</div><div class="rule3"></div>'+
   '<div class="body">'+
   '<h3>BORROWING SPORTS EQUIPMENT FORM</h3>'+
-  '<div class="fields"><div class="f">Borrower’s Name:<span class="u">'+esc(t.name)+'</span></div><div class="f r">Date:<span class="u">'+esc(t.date)+'</span></div>'+
-  '<div class="f">College/Unit:<span class="u">'+esc(t.college)+'</span></div><div class="f r">Time of Request:<span class="u">'+esc(t.time)+'</span></div></div>'+
+  '<div class="fields"><div class="f"><span>Borrower’s Name:</span><span class="u">'+esc(t.name)+'</span></div><div class="f r"><span>Date:</span><span class="u">'+esc(t.date)+'</span></div>'+
+  '<div class="f"><span>College/Unit:</span><span class="u">'+esc(t.college)+'</span></div><div class="f r"><span>Time of Request:</span><span class="u">'+esc(t.time)+'</span></div></div>'+
   '<div class="lbl">List of Requested Sports Equipment:</div>'+
   '<table class="eq"><thead><tr><th style="width:.45in">NO.</th><th>NAME OF EQUIPMENT</th><th style="width:1.2in">QUANTITY</th><th style="width:1in">NO. AVAILABLE EQUIPMENT</th><th style="width:.95in">RETURNED CONDITION</th></tr></thead><tbody>'+rows+'</tbody></table>'+
   '<div class="pu"><div class="line">Purpose/Use:<span class="u" style="flex:1;font-style:normal">'+esc(t.purpose)+'</span></div>'+
   '<div class="line">Expected Return Date and Time:<span class="u" style="width:1.8in">'+due+'</span></div></div>'+
   '<div class="sigblk">'+
-  '<div class="sigrow"><div class="f">Equipment Released by:'+blank+'</div><div class="f">Date and Time Released:'+blank+'</div></div>'+
-  '<div class="sigrow"><div class="f">Equipment Received by:'+blank+'</div><div class="f">Date and Time Received:'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f"><span>Equipment Released by:</span>'+blank+'</div><div class="f"><span>Date and Time Released:</span>'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f"><span>Equipment Received by:</span>'+blank+'</div><div class="f"><span>Date and Time Received:</span>'+blank+'</div></div>'+
   '<div style="height:.2in"></div>'+
-  '<div class="sigrow"><div class="f">Equipment Returned by:'+blank+'</div><div class="f">Date and Time Returned:'+blank+'</div></div>'+
-  '<div class="sigrow"><div class="f">Equipment Received by:'+blank+'</div><div class="f">Date and Time Received:'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f"><span>Equipment Returned by:</span>'+blank+'</div><div class="f"><span>Date and Time Returned:</span>'+blank+'</div></div>'+
+  '<div class="sigrow"><div class="f"><span>Equipment Received by:</span>'+blank+'</div><div class="f"><span>Date and Time Received:</span>'+blank+'</div></div>'+
   '<div style="height:.22in"></div>'+
-  '<div class="sigrow" style="grid-template-columns:1fr 1fr"><div class="f">Borrower’s Signature:'+blank+'</div><div class="f">Authorized Personnel Signature:'+blank+'</div></div>'+
+  '<div class="sigrow" style="grid-template-columns:1fr 1fr"><div class="f"><span>Borrower’s Signature:</span>'+blank+'</div><div class="f"><span>Authorized Personnel Signature:</span>'+blank+'</div></div>'+
   '</div>'+
   '<div class="sep"></div>'+
   '<div class="gl">Borrower’s Guidelines:</div>'+
