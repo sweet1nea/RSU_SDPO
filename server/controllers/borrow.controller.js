@@ -368,6 +368,8 @@ exports.create = async (req, res) => {
         purpose: purpose || null,
         expectedReturnDatetime,
         requestDatetime: new Date(),
+        validIdPath: borrower.validIdPath || null,
+        authorizationDocumentPath: borrower.authorizationDocumentPath || null,
         transactionStatus: STATUS.ACKNOWLEDGED,
         borrowerAcknowledged: true,
         acknowledgementTimestamp: new Date()
@@ -535,6 +537,8 @@ exports.createSelfRequest = async (req, res) => {
           expectedReturnDatetime,
           requestDatetime: new Date(),
           requestKey,
+          validIdPath: borrower.validIdPath || null,
+          authorizationDocumentPath: borrower.authorizationDocumentPath || null,
           transactionStatus: STATUS.ACKNOWLEDGED,
           borrowerAcknowledged: true,
           acknowledgementTimestamp: new Date()
@@ -643,7 +647,7 @@ exports.review = async (req, res) => {
 
   let nextStatus;
   if (action === 'accept') {
-    const missing = missingDocuments(txn.borrower);
+    const missing = missingDocuments(txn.borrower, txn);
     if (missing.length) {
       throw httpError(
         409,

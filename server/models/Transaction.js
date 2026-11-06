@@ -34,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
       // per borrower (migration 023), so a double-click/retry can never
       // create the same request twice.
       requestKey: { type: DataTypes.STRING(64), allowNull: true },
+      // The documents submitted WITH this request (snapshotted from the
+      // borrower's files at submission; migration 027) so a later upload for
+      // another request never changes what this one shows.
+      validIdPath: { type: DataTypes.STRING(255), allowNull: true },
+      authorizationDocumentPath: { type: DataTypes.STRING(255), allowNull: true },
       approvalDatetime: { type: DataTypes.DATE, allowNull: true },
       approvedBy: { type: DataTypes.INTEGER, allowNull: true },
       releaseDatetime: { type: DataTypes.DATE, allowNull: true },

@@ -13,7 +13,12 @@ const { notifyBorrower } = require('../../helpers/notify');
 const { runIncompleteRequirementsSweep } = require('../../jobs/incompleteRequirementsSweep');
 
 function makeTxn(overrides = {}) {
+  // Documents are checked on the request itself (migration 027), so the
+  // snapshot mirrors the borrower's files unless a test overrides it.
+  const b = overrides.borrower || { validIdPath: null, authorizationDocumentPath: null };
   return {
+    validIdPath: b.validIdPath,
+    authorizationDocumentPath: b.authorizationDocumentPath,
     id: 1,
     transactionStatus: 'For Review',
     incompleteReqReminderSentDatetime: null,

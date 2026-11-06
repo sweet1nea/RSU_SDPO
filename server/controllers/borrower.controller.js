@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
-const { Borrower, User, sequelize } = require('../models');
+const { Op } = require('sequelize');
+const { Borrower, User, Transaction, sequelize } = require('../models');
 const { requirementsFor, missingDocuments, BORROWER_CATEGORIES } = require('../constants/borrowerCategories');
 const { getClient } = require('../config/supabase');
 const { recordResubmission } = require('../helpers/correction');
@@ -125,16 +126,33 @@ exports.create = async (req, res) => {
 
 // Upload state plus what this borrower's type requires, so every screen
 // (borrower wizard, staff review drawer) uses the same server-side rules.
-function documentStatus(borrower) {
+function documentStatus(borrower, docs = borrower) {
   const requirements = requirementsFor(borrower && borrower.borrowerCategory);
   return {
     borrowerCategory: borrower ? borrower.borrowerCategory : null,
-    validIdUploaded: !!(borrower && borrower.validIdPath),
-    authorizationDocumentUploaded: !!(borrower && borrower.authorizationDocumentPath),
+    validIdUploaded: !!(docs && docs.validIdPath),
+    authorizationDocumentUploaded: !!(docs && docs.authorizationDocumentPath),
     validIdRequired: requirements.needsValidId,
     authorizationDocumentLabel: requirements.documentLabel,
-    missing: borrower ? missingDocuments(borrower) : []
+    missing: borrower ? missingDocuments(borrower, docs || {}) : []
   };
+}
+
+// Old files are only removed from Storage when no request still points at
+// them — each request keeps the documents it was submitted with.
+async function deleteIfUnreferenced(key) {
+  if (!key) return;
+  const stillUsed = await Transaction.count({
+    where: { [Op.or]: [{ validIdPath: key }, { authorizationDocumentPath: key }] }
+  });
+  if (!stillUsed) await deleteStorageObjectQuietly(key);
+}
+
+// Staff-side requests may name the transaction whose documents they mean.
+async function findBorrowerTransaction(borrowerId, transactionId) {
+  if (!transactionId) return null;
+  const txn = await Transaction.findByPk(transactionId);
+  return txn && txn.borrowerId === borrowerId ? txn : null;
 }
 
 async function findOwnBorrower(req) {
@@ -231,10 +249,10 @@ async function saveUploadedDocuments(borrower, ownerId, files) {
   // Only after the save commits — the borrower record must already point
   // at the new file before the old one is removed.
   if (files.validId && previousValidId && previousValidId !== borrower.validIdPath) {
-    await deleteStorageObjectQuietly(previousValidId);
+    await deleteIfUnreferenced(previousValidId);
   }
   if (files.authorizationDocument && previousAuthDoc && previousAuthDoc !== borrower.authorizationDocumentPath) {
-    await deleteStorageObjectQuietly(previousAuthDoc);
+    await deleteIfUnreferenced(previousAuthDoc);
   }
 
   return borrower;
@@ -246,7 +264,7 @@ async function saveUploadedDocuments(borrower, ownerId, files) {
 exports.uploadDocuments = async (req, res) => {
   const borrower = await findOwnBorrower(req);
   const saved = await saveUploadedDocuments(borrower, req.user.id, req.files || {});
-  await recordResubmission(saved);
+  await recordResubmission(saved, { validId: !!(req.files && req.files.validId), authorizationDocument: !!(req.files && req.files.authorizationDocument) });
   res.json({ success: true, data: documentStatus(saved) });
 };
 
@@ -385,10 +403,10 @@ exports.confirmDocumentUpload = async (req, res) => {
   await borrower.save();
   await borrower.reload();
   if (previous && previous !== key) {
-    await deleteStorageObjectQuietly(previous);
+    await deleteIfUnreferenced(previous);
   }
 
-  await recordResubmission(borrower);
+  await recordResubmission(borrower, { validId: column === 'validIdPath', authorizationDocument: column === 'authorizationDocumentPath' });
   res.json({ success: true, data: documentStatus(borrower) });
 };
 
@@ -404,7 +422,14 @@ exports.confirmDocumentUpload = async (req, res) => {
 exports.uploadDocumentsForBorrower = async (req, res) => {
   const borrower = await findBorrowerById(req);
   const saved = await saveUploadedDocuments(borrower, borrower.userId || `staff-${req.user.id}`, req.files || {});
-  res.json({ success: true, data: documentStatus(saved) });
+  // Staff uploading from a transaction's drawer attach the file to that request.
+  const txn = await findBorrowerTransaction(saved.id, (req.query || {}).transactionId);
+  if (txn) {
+    if (req.files && req.files.validId) txn.validIdPath = saved.validIdPath;
+    if (req.files && req.files.authorizationDocument) txn.authorizationDocumentPath = saved.authorizationDocumentPath;
+    await txn.save();
+  }
+  res.json({ success: true, data: documentStatus(saved, txn || saved) });
 };
 
 // ---- Staff-facing document review (transaction drawer "View Document") ----
@@ -418,7 +443,8 @@ exports.staffDocumentStatus = async (req, res) => {
     err.statusCode = 404;
     throw err;
   }
-  res.json({ success: true, data: documentStatus(borrower) });
+  const txn = await findBorrowerTransaction(borrower.id, (req.query || {}).transactionId);
+  res.json({ success: true, data: documentStatus(borrower, txn || borrower) });
 };
 
 exports.downloadDocument = async (req, res) => {
@@ -430,13 +456,15 @@ exports.downloadDocument = async (req, res) => {
   }
 
   const borrower = await Borrower.findByPk(req.params.id);
-  if (!borrower || !borrower[field]) {
+  const txn = borrower ? await findBorrowerTransaction(borrower.id, (req.query || {}).transactionId) : null;
+  const key = borrower && (txn ? txn[field] : borrower[field]);
+  if (!borrower || !key) {
     const err = new Error('That document has not been submitted');
     err.statusCode = 404;
     throw err;
   }
 
-  const file = await readDocument(borrower[field]);
+  const file = await readDocument(key);
   if (!file) {
     return res.status(404).json({ success: false, message: 'Document file is missing in storage' });
   }

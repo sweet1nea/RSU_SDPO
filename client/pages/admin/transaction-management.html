@@ -326,7 +326,7 @@
     }
     function loadDocumentStatus(t){
       if(!t.borrowerId||t.documentsVerified)return;
-      apiFetch(`/api/borrowers/${t.borrowerId}/documents`).then(status=>{
+      apiFetch(`/api/borrowers/${t.borrowerId}/documents?transactionId=${t.dbId}`).then(status=>{
         const authLabel=document.getElementById('docLabel-authorization-document');
         if(authLabel&&status.authorizationDocumentLabel)authLabel.textContent=status.authorizationDocumentLabel;
         updateDocRow(t.borrowerId,'valid-id',status.validIdUploaded,status.validIdRequired,t.name);
@@ -380,7 +380,7 @@
       const prevText=statusEl.textContent;statusEl.textContent='Uploading…';if(btn)btn.disabled=true;
       try{
         const form=new FormData();form.append(field,file);
-        await apiFetch(`/api/borrowers/${borrowerId}/documents`,{method:'POST',body:form});
+        await apiFetch(`/api/borrowers/${borrowerId}/documents${current?'?transactionId='+current.dbId:''}`,{method:'POST',body:form});
         toast((borrowerName||'Document')+' — document uploaded');
         if(current)loadDocumentStatus(current);
       }catch(e){
@@ -398,7 +398,7 @@
       overlay.classList.add('show');overlay.setAttribute('aria-hidden','false');
       try{
         const token=localStorage.getItem('rsuSdpoToken');
-        const res=await fetch(`/api/borrowers/${borrowerId}/documents/${type}`,{headers:{Authorization:'Bearer '+token}});
+        const res=await fetch(`/api/borrowers/${borrowerId}/documents/${type}${current?'?transactionId='+current.dbId:''}`,{headers:{Authorization:'Bearer '+token}});
         if(!res.ok){
           const errBody=await res.json().catch(()=>null);
           // This fetch bypasses apiFetch (it needs the raw Response to read a
