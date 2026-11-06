@@ -30,7 +30,10 @@ const INCLUDE = [
   {
     model: TransactionDetail,
     as: 'details',
-    include: [{ model: Item, as: 'item', include: [{ model: Equipment, as: 'equipment', include: [{ model: Category, as: 'category' }] }] }]
+    include: [
+      { model: Item, as: 'item', include: [{ model: Equipment, as: 'equipment', include: [{ model: Category, as: 'category' }] }] },
+      { model: Equipment, as: 'equipment', include: [{ model: Category, as: 'category' }] }
+    ]
   },
   { model: TransactionLog, as: 'logs' }
 ];
@@ -137,11 +140,11 @@ async function getBorrowingRestrictions(borrower, user) {
   return restrictions;
 }
 
-// Counterpart to the reservation done at request creation: gives still-
-// Reserved units back to the available pool when a request is Rejected or
-// Cancelled before release.
+// Gives still-Reserved units back to the available pool when a request is
+// Rejected or Cancelled before release. A pending self-service request holds
+// no units (they are assigned at approval), so those rows are skipped.
 async function releaseReservedItems(txn, t) {
-  const reserved = txn.details.filter((d) => d.item.availabilityStatus === 'Reserved');
+  const reserved = txn.details.filter((d) => d.item && d.item.availabilityStatus === 'Reserved');
   if (reserved.length === 0) return;
   await Item.update(
     { availabilityStatus: 'Available' },
@@ -153,6 +156,45 @@ async function releaseReservedItems(txn, t) {
   });
   for (const [equipmentId, qty] of Object.entries(byEquipment)) {
     await Equipment.increment('availableQuantity', { by: qty, where: { id: equipmentId }, transaction: t });
+  }
+}
+
+// Reserve-on-approval: a self-service request names equipment only. When it
+// is approved, one free unit per requested line is locked, marked Reserved
+// and assigned to the detail row, and the equipment's available count drops.
+// Walk-in requests already hold their units, so their rows are skipped.
+// Throws 409 (and rolls the approval back) if free units ran out meanwhile.
+async function assignUnitsOnApproval(txn, t) {
+  const pending = txn.details.filter((d) => !d.item && !d.itemId);
+  if (pending.length === 0) return;
+  const byEquipment = new Map();
+  pending.forEach((d) => {
+    if (!byEquipment.has(d.equipmentId)) byEquipment.set(d.equipmentId, []);
+    byEquipment.get(d.equipmentId).push(d);
+  });
+  for (const [equipmentId, rows] of byEquipment) {
+    const equipment = await Equipment.findByPk(equipmentId, { transaction: t, lock: t.LOCK.UPDATE });
+    const free = await Item.findAll({
+      where: { equipmentId, availabilityStatus: 'Available' },
+      order: [['id', 'ASC']],
+      limit: rows.length,
+      lock: t.LOCK.UPDATE,
+      transaction: t
+    });
+    if (free.length < rows.length) {
+      const name = equipment ? equipment.equipmentName : `Equipment #${equipmentId}`;
+      throw httpError(
+        409,
+        `Cannot approve: "${name}" has only ${free.length} free unit(s) left but this request needs ${rows.length}. Other approved requests are holding the stock — return the request for correction or reject it.`,
+        'INSUFFICIENT_STOCK_AT_APPROVAL',
+        { equipmentId, available: free.length, requested: rows.length }
+      );
+    }
+    await Item.update({ availabilityStatus: 'Reserved' }, { where: { id: free.map((i) => i.id) }, transaction: t });
+    await Equipment.decrement('availableQuantity', { by: rows.length, where: { id: equipmentId }, transaction: t });
+    for (let i = 0; i < rows.length; i += 1) {
+      await rows[i].update({ itemId: free[i].id }, { transaction: t });
+    }
   }
 }
 
@@ -191,6 +233,10 @@ function lastLogFor(t, newStatus) {
 // Dates are formatted in Philippine Time on the server (formatDate/
 // formatTime) and also returned as ISO instants so clients can format them
 // consistently without trusting their own clock/timezone.
+function detailEquipment(d) {
+  return d.equipment || (d.item && d.item.equipment) || null;
+}
+
 function serialize(t) {
   const b = t.borrower;
   const firstItem = (t.details || [])[0];
@@ -236,27 +282,27 @@ function serialize(t) {
       returned: t.returnDatetime || null,
       expectedReturn: t.expectedReturnDatetime || null
     },
-    category:
-      firstItem && firstItem.item && firstItem.item.equipment && firstItem.item.equipment.category
-        ? firstItem.item.equipment.category.categoryName
-        : '—',
-    items: (t.details || []).map((d) => ({
-      code: d.item.itemCode,
-      legacyCode: d.item.legacyItemCode || null,
-      equipmentId: d.item.equipmentId,
-      equipmentCode: formatEquipmentCode(
-        d.item.equipment.category ? d.item.equipment.category.categoryName : null,
-        d.item.equipment.equipmentName,
-        d.item.equipmentId
-      ),
-      name: d.item.equipment.equipmentName,
-      category: d.item.equipment.category ? d.item.equipment.category.categoryName : null,
-      photoUrl: d.item.equipment.photoPath
-        ? `/api/equipment/${d.item.equipmentId}/photo?v=${encodeURIComponent(String(d.item.equipment.photoPath).split('/').pop())}`
+    category: firstItem && detailEquipment(firstItem) && detailEquipment(firstItem).category
+      ? detailEquipment(firstItem).category.categoryName
+      : '—',
+    items: (t.details || []).map((d) => {
+      const eq = detailEquipment(d);
+      const eqId = d.equipmentId || (d.item && d.item.equipmentId);
+      const cat = eq && eq.category ? eq.category.categoryName : null;
+      return {
+      code: d.item ? d.item.itemCode : null,
+      legacyCode: (d.item && d.item.legacyItemCode) || null,
+      equipmentId: eqId,
+      equipmentCode: formatEquipmentCode(cat, eq ? eq.equipmentName : '', eqId),
+      name: eq ? eq.equipmentName : '—',
+      category: cat,
+      photoUrl: eq && eq.photoPath
+        ? `/api/equipment/${eqId}/photo?v=${encodeURIComponent(String(eq.photoPath).split('/').pop())}`
         : null,
       returnedCondition: d.returnedCondition,
       conditionNotes: d.conditionNotes
-    }))
+      };
+    })
   };
 }
 
@@ -377,7 +423,7 @@ exports.create = async (req, res) => {
       { transaction: t }
     );
     await TransactionDetail.bulkCreate(
-      items.map((i) => ({ transactionId: txn.id, itemId: i.id })),
+      items.map((i) => ({ transactionId: txn.id, itemId: i.id, equipmentId: i.equipmentId })),
       { transaction: t }
     );
     return txn;
@@ -462,7 +508,6 @@ exports.createSelfRequest = async (req, res) => {
   let created;
   try {
     created = await sequelize.transaction(async (t) => {
-      const selectedItems = [];
       for (const { equipmentId, quantity } of lines) {
         // FOR UPDATE serializes concurrent requests for the same equipment.
         const equipment = await Equipment.findByPk(equipmentId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -491,7 +536,6 @@ exports.createSelfRequest = async (req, res) => {
           where: { equipmentId, availabilityStatus: 'Available' },
           order: [['id', 'ASC']],
           limit: quantity,
-          lock: t.LOCK.UPDATE,
           transaction: t
         });
         if (available.length < quantity) {
@@ -522,12 +566,9 @@ exports.createSelfRequest = async (req, res) => {
           throw httpError(409, `Not enough stock for "${equipment.equipmentName}" — ${available.length} available, ${quantity} requested`);
         }
 
-        await Item.update(
-          { availabilityStatus: 'Reserved' },
-          { where: { id: available.map((i) => i.id) }, transaction: t }
-        );
-        await equipment.decrement('availableQuantity', { by: quantity, transaction: t });
-        selectedItems.push(...available);
+        // Reserve-on-approval: nothing is reserved or decremented here. A
+        // pending request leaves stock untouched; units are assigned and
+        // availableQuantity drops only when SDPO approves it.
       }
 
       const txn = await Transaction.create(
@@ -545,10 +586,11 @@ exports.createSelfRequest = async (req, res) => {
         },
         { transaction: t }
       );
-      await TransactionDetail.bulkCreate(
-        selectedItems.map((i) => ({ transactionId: txn.id, itemId: i.id })),
-        { transaction: t }
-      );
+      const detailRows = [];
+      lines.forEach(({ equipmentId, quantity }) => {
+        for (let i = 0; i < quantity; i += 1) detailRows.push({ transactionId: txn.id, equipmentId, itemId: null });
+      });
+      await TransactionDetail.bulkCreate(detailRows, { transaction: t });
       return txn;
     });
   } catch (err) {
@@ -624,7 +666,7 @@ exports.cancelSelfRequest = async (req, res) => {
 // Step 2 — SDPO review of the borrower's submitted documents.
 //   accept     → documents verified and request approved, in one action
 //   correction → stays with the borrower to fix (status unchanged)
-//   reject     → request rejected, reserved stock released
+//   reject     → request rejected (any units already held are released)
 // 'accept' requires every document the borrower's type needs to be on file.
 // Single approval step (2026-10-02): checking the borrower's documents and
 // approving the request happen together, in one action, by whichever of the
@@ -657,12 +699,21 @@ exports.review = async (req, res) => {
       );
     }
     nextStatus = STATUS.APPROVED;
-    await transition(txn, AWAITING_REVIEW, nextStatus, {
-      ...reviewFields,
-      documentsVerifiedBy: req.user.id,
-      documentsVerifiedDatetime: now,
-      approvedBy: req.user.id,
-      approvalDatetime: now
+    await sequelize.transaction(async (t) => {
+      await transition(
+        txn,
+        AWAITING_REVIEW,
+        nextStatus,
+        {
+          ...reviewFields,
+          documentsVerifiedBy: req.user.id,
+          documentsVerifiedDatetime: now,
+          approvedBy: req.user.id,
+          approvalDatetime: now
+        },
+        t
+      );
+      await assignUnitsOnApproval(txn, t);
     });
   } else if (action === 'reject') {
     nextStatus = STATUS.REJECTED;
@@ -712,7 +763,10 @@ exports.approve = async (req, res) => {
   if (!txn.documentsVerifiedDatetime) {
     throw httpError(409, 'Submitted documents must be verified before this request can be approved', 'DOCUMENTS_NOT_VERIFIED');
   }
-  await transition(txn, [STATUS.FOR_APPROVAL], STATUS.APPROVED, { approvedBy: req.user.id, approvalDatetime: new Date() });
+  await sequelize.transaction(async (t) => {
+    await transition(txn, [STATUS.FOR_APPROVAL], STATUS.APPROVED, { approvedBy: req.user.id, approvalDatetime: new Date() }, t);
+    await assignUnitsOnApproval(txn, t);
+  });
   await logStatusChange(txn.id, req.user.id, STATUS.FOR_APPROVAL, STATUS.APPROVED, 'Request approved');
   if (txn.borrower && txn.borrower.user) {
     await notifyBorrower(
@@ -763,6 +817,9 @@ exports.release = async (req, res) => {
   assertStatus(txn, STATUS.APPROVED);
 
   const scanned = itemCodes.map((c) => String(c).trim());
+  if (txn.details.some((d) => !d.item)) {
+    throw httpError(409, 'Units have not been assigned to this transaction yet. Refresh and try again.');
+  }
   const units = txn.details.map((d) => d.item);
   const allMatched =
     scanned.length === units.length &&
@@ -782,7 +839,7 @@ exports.release = async (req, res) => {
 
   await sequelize.transaction(async (t) => {
     await transition(txn, [STATUS.APPROVED], STATUS.RELEASED, { releasedBy: req.user.id, releaseDatetime: new Date() }, t);
-    // availableQuantity was already decremented at reservation time.
+    // availableQuantity was already decremented when the units were reserved at approval.
     for (const detail of txn.details) {
       await detail.item.update(
         { availabilityStatus: 'Borrowed', currentBorrowerId: txn.borrowerId },

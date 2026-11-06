@@ -330,9 +330,9 @@ exports.remove = async (req, res) => {
   await sequelize.transaction(async (t) => {
     const items = await Item.findAll({ where: { equipmentId: equipment.id }, attributes: ['id', 'availabilityStatus'], transaction: t });
     const itemIds = items.map((i) => i.id);
-    const usedCount = itemIds.length
-      ? await TransactionDetail.count({ where: { itemId: { [Op.in]: itemIds } }, transaction: t })
-      : 0;
+    // By equipment (not just unit) so a pending request that has not been
+    // assigned units yet also counts as history.
+    const usedCount = await TransactionDetail.count({ where: { equipmentId: equipment.id }, transaction: t });
     if (usedCount > 0 || items.some((i) => i.availabilityStatus !== 'Available')) {
       const err = new Error('Cannot delete — this equipment has borrowing history or units currently in use');
       err.statusCode = 409;

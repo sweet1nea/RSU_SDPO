@@ -286,7 +286,7 @@
     // before they exist) fills each canvas in; clicking one opens a larger,
     // print-quality preview via openEquipmentQr() (by request, so staff can
     // double-check or re-print a label without leaving this drawer).
-    function equipment(t,returning=false){return t.items.map(it=>`<div class="equipment-row"><div class="qr" data-code="${esc(it.code)}" data-name="${esc(it.name)}" title="Click to enlarge"><canvas></canvas></div><div class="grow"><b>${esc(it.name)}</b><span class="sub">${esc(it.equipmentCode)} · Unit ${esc(it.code)} · ${returning?'Released':'Reserved'}</span>${returning?`<div class="item-condition"><button class="on" onclick="chooseItemCondition(this,'${it.code}','Good')">Good</button><button onclick="chooseItemCondition(this,'${it.code}','Damaged')">Damaged</button><button onclick="chooseItemCondition(this,'${it.code}','Lost')">Lost</button></div>`:''}</div><button class="scan" data-code="${esc(it.code)}" data-name="${esc(it.name)}" data-legacy="${esc(it.legacyCode||'')}" onclick="scanItem(this)">Scan QR</button></div>`).join('')}
+    function equipment(t,returning=false){return t.items.map(it=>!it.code?`<div class="equipment-row"><div class="grow"><b>${esc(it.name)}</b><span class="sub">${esc(it.equipmentCode)} · Unit assigned on approval</span></div></div>`:`<div class="equipment-row"><div class="qr" data-code="${esc(it.code)}" data-name="${esc(it.name)}" title="Click to enlarge"><canvas></canvas></div><div class="grow"><b>${esc(it.name)}</b><span class="sub">${esc(it.equipmentCode)} · Unit ${esc(it.code)} · ${returning?'Released':'Reserved'}</span>${returning?`<div class="item-condition"><button class="on" onclick="chooseItemCondition(this,'${it.code}','Good')">Good</button><button onclick="chooseItemCondition(this,'${it.code}','Damaged')">Damaged</button><button onclick="chooseItemCondition(this,'${it.code}','Lost')">Lost</button></div>`:''}</div><button class="scan" data-code="${esc(it.code)}" data-name="${esc(it.name)}" data-legacy="${esc(it.legacyCode||'')}" onclick="scanItem(this)">Scan QR</button></div>`).join('')}
 
     // Same value QR Management encodes for this unit (see qr-management.html
     // #scanUrl) — a URL so a generic phone camera app, not just this app's
@@ -301,7 +301,7 @@
     document.getElementById('workflow').addEventListener('click',e=>{const tile=e.target.closest('.qr[data-code]');if(tile)openEquipmentQr(tile)});
     // Read-only listing for the Overview tab — just what was requested, no
     // scan control (scanning only happens during the actual Workflow step).
-    function equipmentDetails(t){return t.items.map(it=>`<div class="equipment-row"><div class="grow"><b>${esc(it.name)}</b><span class="sub">Equipment ID ${esc(it.equipmentCode)} · Unit ${esc(it.code)}</span></div></div>`).join('')}
+    function equipmentDetails(t){return t.items.map(it=>`<div class="equipment-row"><div class="grow"><b>${esc(it.name)}</b><span class="sub">Equipment ID ${esc(it.equipmentCode)} · ${it.code?'Unit '+esc(it.code):'Unit assigned on approval'}</span></div></div>`).join('')}
 
     // --- Submitted documents (Valid ID / Authorization Document) ---
     // Viewable by Admin/Staff and the Director at every stage — including
@@ -934,7 +934,7 @@ let toastTimer;function toast(msg){let el=document.getElementById('toast');el.te
     function applyFilters(){
       const q=searchInput.value.toLowerCase();
       const rows=txns.filter(t=>
-        (!q||(Object.values(t).filter(v=>typeof v!=='object').join(' ')+' '+t.items.map(it=>it.code+' '+it.name).join(' ')).toLowerCase().includes(q))&&
+        (!q||(Object.values(t).filter(v=>typeof v!=='object').join(' ')+' '+t.items.map(it=>(it.code||'')+' '+it.name).join(' ')).toLowerCase().includes(q))&&
         (!statusFilter.value||t.status===statusFilter.value)&&
         (!borrowerTypeFilter.value||t.type===borrowerTypeFilter.value)&&
         (!categoryFilter.value||t.category===categoryFilter.value)&&

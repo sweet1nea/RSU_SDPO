@@ -72,7 +72,7 @@
   if(!t){page.innerHTML='<p style="padding:1in">No transaction selected. Close this tab and use Print BSEF again.</p>';return}
   // One row per equipment type; quantity = number of units on the request.
   var groups=[],idx={};
-  (t.items||[]).forEach(function(i){var k=i.name;if(!(k in idx)){idx[k]=groups.length;groups.push({name:k,codes:[],qty:0})}var g=groups[idx[k]];g.qty++;g.codes.push(i.code)});
+  (t.items||[]).forEach(function(i){var k=i.name;if(!(k in idx)){idx[k]=groups.length;groups.push({name:k,codes:[],qty:0})}var g=groups[idx[k]];g.qty++;if(i.code)g.codes.push(i.code)});
   var rows=groups.map(function(g,n){return '<tr><td class="c">'+(n+1)+'</td><td>'+esc(g.name)+'<div class="codes">'+esc(g.codes.join(', '))+'</div></td><td class="c">'+g.qty+'</td><td></td><td></td></tr>'}).join('');
   for(var k=groups.length;k<5;k++)rows+='<tr><td></td><td></td><td></td><td></td><td></td></tr>';
   var blank='<span class="u"></span>';
