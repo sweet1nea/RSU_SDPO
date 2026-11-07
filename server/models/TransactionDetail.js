@@ -6,6 +6,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       TransactionDetail.belongsTo(models.Transaction, { foreignKey: 'transactionId', as: 'transaction' });
       TransactionDetail.belongsTo(models.Item, { foreignKey: 'itemId', as: 'item' });
+      TransactionDetail.belongsTo(models.Equipment, { foreignKey: 'equipmentId', as: 'equipment' });
     }
   }
 
@@ -13,7 +14,9 @@ module.exports = (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: 'detail_id' },
       transactionId: { type: DataTypes.INTEGER, allowNull: false },
-      itemId: { type: DataTypes.INTEGER, allowNull: false },
+      // Null while the request is pending; units are assigned at approval.
+      itemId: { type: DataTypes.INTEGER, allowNull: true },
+      equipmentId: { type: DataTypes.INTEGER, allowNull: false },
       returnedCondition: { type: DataTypes.ENUM('Good', 'Damaged', 'Lost'), allowNull: true },
       conditionNotes: { type: DataTypes.TEXT, allowNull: true }
     },
