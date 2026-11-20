@@ -246,14 +246,32 @@
     // Philippine Time "today" key for the Approved Today counter.
     const phDayKey=v=>new Date(v).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'});
 
+    // Summary cards are always computed from the freshly fetched list, never
+    // from the filtered table, so they stay accurate whatever filter is active.
+    // 'For Approval' / 'For Review' are legacy statuses that still await a
+    // decision, so they count as pending too.
+    const PENDING_STATUSES=['Pending','Acknowledged','For Review','For Approval'];
+    function updateSummaryCards(){
+      const today=phDayKey(Date.now());
+      document.getElementById('countPending').textContent=txns.filter(t=>PENDING_STATUSES.includes(t.status)).length;
+      document.getElementById('countReleased').textContent=txns.filter(t=>['Released','Overdue'].includes(t.status)).length;
+      document.getElementById('countOverdue').textContent=txns.filter(t=>t.status==='Overdue').length;
+      document.getElementById('countApprovedToday').textContent=txns.filter(t=>t.timestamps&&t.timestamps.approved&&phDayKey(t.timestamps.approved)===today).length;
+    }
+    // Background refresh: same data and cards, but no deep-link drawer and no
+    // error toast, so it never interrupts what the staff member is doing.
+    let refreshBusy=false;
+    async function refreshTransactions(){
+      if(refreshBusy||document.hidden||actionBusy)return;
+      refreshBusy=true;
+      try{txns=await apiFetch('/api/borrow');updateSummaryCards();applyFilters()}catch(e){/* keep the last good numbers */}
+      finally{refreshBusy=false}
+    }
+
     async function loadTransactions(){
       try{
         txns=await apiFetch('/api/borrow');
-        document.getElementById('countPending').textContent=txns.filter(t=>['Pending','Acknowledged'].includes(t.status)).length;
-        document.getElementById('countReleased').textContent=txns.filter(t=>['Released','Overdue'].includes(t.status)).length;
-        document.getElementById('countOverdue').textContent=txns.filter(t=>t.status==='Overdue').length;
-        const today=phDayKey(Date.now());
-        document.getElementById('countApprovedToday').textContent=txns.filter(t=>t.timestamps&&t.timestamps.approved&&phDayKey(t.timestamps.approved)===today).length;
+        updateSummaryCards();
         applyFilters();
         // Deep link from the Transaction Log Report calendar: ?open=<dbId>
         const openId=Number(new URLSearchParams(location.search).get('open'));
@@ -955,6 +973,8 @@ let toastTimer;function toast(msg){let el=document.getElementById('toast');el.te
     // Category filter options come from the real category list.
     apiFetch('/api/categories').then(rows=>{categoryFilter.insertAdjacentHTML('beforeend',rows.map(c=>`<option>${esc(c.categoryName)}</option>`).join(''))}).catch(()=>{});
     loadTransactions();
+    setInterval(refreshTransactions,15000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshTransactions()});
   </script>
 </body>
 </html>
