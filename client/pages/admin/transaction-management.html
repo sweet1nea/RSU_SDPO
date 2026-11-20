@@ -115,7 +115,7 @@
 </head>
 <body>
   <div id="app-root" data-page="transactions" data-title="Transaction Management" data-subtitle="Review, approve, release, and monitor equipment borrowing transactions">
-    <div class="heading-row"><button class="new-txn-btn" type="button" onclick="openNewTxnModal()">+ New Transaction</button><div class="counts"><div class="count pending"><b id="countPending">0</b>Pending Requests</div><div class="count"><b id="countOverdue">0</b>Overdue</div><div class="count"><b id="countReleased">0</b>Released Equipment</div><div class="count"><b id="countApprovedToday">0</b>Approved Today</div></div></div>
+    <div class="heading-row"><button class="new-txn-btn" type="button" onclick="openNewTxnModal()">+ New Transaction</button><div class="counts"><div class="count pending"><b id="countPending">0</b>Pending Requests</div><div class="count"><b id="countApproved">0</b>Approved</div><div class="count"><b id="countReleased">0</b>Released</div><div class="count"><b id="countOverdue">0</b>Overdue</div><div class="count"><b id="countResolution">0</b>In Resolution</div><div class="count"><b id="countCompleted">0</b>Completed</div><div class="count"><b id="countApprovedToday">0</b>Approved Today</div></div></div>
     <div class="filters"><input id="search" class="search" placeholder="Search by name, ID, college, purpose..." aria-label="Search transactions"><select id="statusFilter"><option value="">All Statuses</option><option value="Acknowledged">Pending Requests</option><option>For Approval</option><option>Approved</option><option>Released</option><option>Overdue</option><option>For Resolution</option><option>Replacement</option><option>Resolved</option><option>Completed</option><option>Rejected</option><option>Cancelled</option></select><select id="borrowerTypeFilter"><option value="">All Borrower Types</option><option>Student</option><option>Faculty</option><option>Employee</option><option>External</option></select><select id="categoryFilter"><option value="">All Categories</option></select><button class="filter-button" id="overdueOnlyBtn" type="button" aria-pressed="false">☷ Overdue Only</button></div>
     <section class="table-card"><div class="table-note">Showing <b id="shown">10</b> transactions</div><div class="scroll"><table class="txn-table"><thead><tr><th>Transaction No.</th><th>Request Date</th><th>Borrower</th><th>Type</th><th>College / Unit</th><th>Purpose</th><th>Equip.</th><th>Expected Return</th><th>Status</th><th>Reviewed By</th><th>Approved By</th><th>Actions</th></tr></thead><tbody id="transactions"></tbody></table></div><div class="pagination"><button>Prev</button><button>1</button><button>Next</button></div></section>
   </div>
@@ -246,14 +246,35 @@
     // Philippine Time "today" key for the Approved Today counter.
     const phDayKey=v=>new Date(v).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'});
 
+    // Summary cards: every card counts from the full, freshly fetched list (never the filtered rows),
+    // and the status groups are disjoint, so the cards add up to the real number of transactions.
+    function updateCounts(){
+      const n=list=>txns.filter(t=>list.includes(t.status)).length;
+      const set=(id,v)=>{document.getElementById(id).textContent=v};
+      set('countPending',n(['Pending','Acknowledged','For Approval']));
+      set('countApproved',n(['Approved']));
+      set('countReleased',n(['Released']));
+      set('countOverdue',n(['Overdue']));
+      set('countResolution',n(['For Resolution','Replacement','Resolved']));
+      set('countCompleted',n(['Completed']));
+      const today=phDayKey(Date.now());
+      set('countApprovedToday',txns.filter(t=>t.timestamps&&t.timestamps.approved&&phDayKey(t.timestamps.approved)===today).length);
+    }
+    // Keep the cards and table current without a manual refresh: poll quietly while the tab is visible
+    // and refetch when the admin returns to the tab. Skipped while an action or a form is open.
+    async function refreshQuietly(){
+      if(document.hidden||actionBusy)return;
+      const modalOpen=document.querySelector('.overlay.show,.scan-overlay.show,#newTxnOverlay.show');
+      if(modalOpen)return;
+      try{txns=await apiFetch('/api/borrow');updateCounts();applyFilters()}catch(e){}
+    }
+    setInterval(refreshQuietly,15000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshQuietly()});
+
     async function loadTransactions(){
       try{
         txns=await apiFetch('/api/borrow');
-        document.getElementById('countPending').textContent=txns.filter(t=>['Pending','Acknowledged'].includes(t.status)).length;
-        document.getElementById('countReleased').textContent=txns.filter(t=>['Released','Overdue'].includes(t.status)).length;
-        document.getElementById('countOverdue').textContent=txns.filter(t=>t.status==='Overdue').length;
-        const today=phDayKey(Date.now());
-        document.getElementById('countApprovedToday').textContent=txns.filter(t=>t.timestamps&&t.timestamps.approved&&phDayKey(t.timestamps.approved)===today).length;
+        updateCounts();
         applyFilters();
         // Deep link from the Transaction Log Report calendar: ?open=<dbId>
         const openId=Number(new URLSearchParams(location.search).get('open'));
